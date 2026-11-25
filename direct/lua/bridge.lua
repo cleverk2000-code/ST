@@ -211,6 +211,14 @@ local function incoming(s,c,t,payload,retained)
    cmd.component=component
    if s.inject then
     -- The SDK resolves the actual matching subdriver and translates named_args.
+    local owned=false
+    for _,known in ipairs(s.driver:get_devices()) do if known.id==d.id then owned=true;break end end
+    if not owned then return end
+    local dispatch=s.driver.capability_dispatcher
+    if dispatch and type(dispatch.can_handle)=="function" then
+     local can=dispatch:can_handle(s.driver,d,cmd)
+     if not can then return end
+    end
     s.driver:inject_capability_command(d,{capability=cmd.capability,command=cmd.command,component=component,named_args=cmd.args})
    else s.handlers[cmd.capability][cmd.command](s.driver,d,cmd) end
   end)

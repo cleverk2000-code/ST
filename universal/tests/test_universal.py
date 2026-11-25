@@ -20,3 +20,8 @@ class UniversalTest(unittest.TestCase):
   d=lambda id:{"type":"ZIGBEE","deviceId":id,"zigbee":{"driverId":id}}
   r=i.plan([d("1"),d("2"),d("3"),d("4")],[{"driverId":"1","name":"Zigbee Switch"},{"driverId":"2","name":"EF00 Covers 2 wonjj6768"},{"driverId":"3","name":"Unknown"},{"driverId":"4","name":"ST MQTT Zigbee Switch"}])
   self.assertEqual([x["method"] for x in r],["official","wonjj","rules_or_review","already_mqtt"])
+
+ def test_unsafe_inventory(self):
+  devices=[{"type":"ZIGBEE","deviceId":"a","zigbee":{"driverId":"a"}},{"type":"ZIGBEE","deviceId":"b","zigbee":{"driverId":"b"}}]
+  drivers=[{"driverId":"a","name":"EF00 Valves wonjj6768"},{"driverId":"b","name":"Unreviewed driver"}]
+  self.assertEqual([x["method"] for x in i.plan(devices,drivers)],["rules_or_review","rules_or_review"])

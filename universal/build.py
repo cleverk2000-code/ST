@@ -28,7 +28,7 @@ def patch(data,family,expected=None):
     src=re.sub(r'(native_capability_(?:cmds|attrs)_enabled\s*=\s*)true\b',r'\g<1>false',src)
     match=ENTRY.search(src)
     run=re.search(r'(?m)^\s*'+re.escape(var)+r':run\(\)\s*\Z',src)
-    return src[:run.start()]+'\n-- ST Direct MQTT adapter (modified source)\nrequire("st_mqtt.bridge").attach('+var+',"'+family+'")\n'+src[run.start():]
+    return src[:run.start()]+'\n-- ST Direct MQTT adapter (modified source)\nlocal st_mqtt_ok = pcall(function() require("st_mqtt.bridge").attach('+var+',"'+family+'") end)\nif not st_mqtt_ok then require("log").warn("ST Direct MQTT initialization unavailable") end\n'+src[run.start():]
 def download(repo,rev,cache):
     if not REPO.fullmatch(repo) or not REV.fullmatch(rev):raise ValueError("Explicit repository and immutable full commit required")
     if any(x in (".","..") for x in repo.split("/")):raise ValueError("Invalid repository")
@@ -105,6 +105,7 @@ def main():
     p.add_argument("--official",nargs="*",default=["zigbee-switch","zigbee-motion-sensor","zigbee-window-treatment"])
     p.add_argument("--wonjj",nargs="*",default=["ef00-covers-2-wonjj6768","zcl-plugs-wonjj6768"])
     p.add_argument("--all-official",action="store_true")
+    p.add_argument("--plan",type=Path,help="Read-only inventory plan; select known package families")
     p.add_argument("--custom",type=Path,help="Reviewed JSON list: repo,revision,package,family,license,entry_blob")
     p.add_argument("--official-archive",type=Path)
     p.add_argument("--wonjj-archive",type=Path)
@@ -113,6 +114,14 @@ def main():
     if len(set(official))!=len(official) or any(n not in OFF["packages"] for n in official):p.error("Unknown or duplicate official package")
     custom=json.loads(args.custom.read_text(encoding="utf-8")) if args.custom else []
     if not isinstance(custom,list):p.error("Custom JSON must be a list")
+    if args.plan:
+        plan=json.loads(args.plan.read_text(encoding="utf-8-sig"))
+        official=sorted({r["package"] for r in plan if r["method"]=="official" and r["package"] in OFF["packages"]})
+        args.wonjj=sorted({r["package"] for r in plan if r["method"]=="wonjj" and direct.ALLOWED.fullmatch(r["package"] or "")})
+        selected={r["package"] for r in plan if r["method"]=="custom"}
+        custom=[c for c in custom if c["family"] in selected]
+        if not (official or args.wonjj or custom):p.error("No supported unconverted devices in plan")
+        print("Selected:",official,args.wonjj,[c["family"] for c in custom])
     out=args.out.resolve()
     if out.exists():p.error("Output must not exist")
     out.parent.mkdir(parents=True,exist_ok=True)

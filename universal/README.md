@@ -18,7 +18,12 @@ Windows Python 3.10+ 및 PyYAML.
 
 inventory는 CLI의 현재 기기 및 설치 드라이버 정보를 읽어 분류합니다. 정보가 부족하거나 원본 이름이 일치하지 않으면 rules_or_review로 분류; 소스 추측/자동 다운로드 없음. CLI 인증은 필요할 수 있습니다. --hub로 특정 허브 제한 가능. JSON 파일은 로컬에 보관하세요.
 
-기타 공개 소스는 custom.example.json을 복사해 실제 값과 라이선스를 검토하고 --custom 경로를 지정합니다. 이 도구는 사용자 승인 없는 타사 소스 실행/배포/실제 기기 드라이버 변경을 수행하지 않습니다. 빌드한 패키지를 전용 채널에 SmartThings CLI로 설치 후, 호환 기기에 수동 적용합니다. 기존 direct/README.md의 MQTT 설정을 각 드라이버 계열의 대표 기기에서 수행합니다. 신규 기기는 해당 MQTT 드라이버에 매칭된 경우 자동으로 HA Discovery 등록됩니다.
+기타 공개 소스는 custom.example.json을 복사해 실제 값과 라이선스를 검토하고 --custom 경로를 지정합니다. 이 도구는 사용자 승인 없는 타사 소스 실행/배포/실제 기기 드라이버 변경을 수행하지 않습니다. 현재 설치 기기에 필요한 패키지 선택·빌드·전용 채널 생성/가입/설치까지 아래 스크립트로 처리합니다. 호환 기기 자체의 드라이버 변경은 수동 확인이 필요합니다.
+
+    powershell -ExecutionPolicy Bypass -File .\universal\deploy.ps1 -PlanOnly
+    powershell -ExecutionPolicy Bypass -File .\universal\deploy.ps1 -Install
+
+전체 공식 기반 패키지와 기본 wonjj 두 패키지를 함께 설치하려면 -AllOfficial을 추가하세요. -Custom으로 검토된 JSON을 지정합니다. 설치 전에 목록 확인을 요청하며 실제 기기를 강제로 변경하거나 삭제하지 않습니다. 기존 direct/README.md의 MQTT 설정을 각 드라이버 계열의 대표 기기에서 수행합니다. 신규 기기는 해당 MQTT 드라이버에 매칭된 경우 자동으로 HA Discovery 등록됩니다.
 
 ## 제한
 모든 설치 드라이버의 소스/원격 기기 접근은 SDK에서 제공하지 않습니다. 공개 소스 검색은 이름만으로 안전하게 자동 확정할 수 없습니다. 직접 MQTT는 수정된 드라이버가 담당하는 기기만 동작하며 원본 기본 드라이버 자체를 자동 패치하지 않습니다. 원본 라이선스/NOTICE 포함. 자동 빌드 검증은 삼성 허브 실기 검증과 다릅니다.

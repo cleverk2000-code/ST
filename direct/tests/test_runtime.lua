@@ -152,3 +152,33 @@ assert(count(root.."/availability","offline")>0)
 template.capability_handlers.switch.on(drv,d1,{component="main"})
 assert(#calls==4)
 print("direct runtime simulation passed")
+
+-- Official SDK adapter: polling does not replace lifecycle, command goes through SDK injector.
+local sdkdev=device("sdk-device",true,{main=component("main",{"switch","powerMeter"})})
+sdkdev:emit_event(event("switch","switch","off"))
+local sdklist={sdkdev}
+local scheduled
+local injected={}
+local sdk={}
+function sdk:get_devices()return sdklist end
+function sdk:call_on_schedule(interval,cb)assert(interval==3);scheduled=cb end
+function sdk:inject_capability_command(d,c)injected[#injected+1]={id=d.id,command=c.command,component=c.component,args=c.named_args}end
+local sdkstate=bridge.attach(sdk,"st-test")
+assert(scheduled and next(sdkstate.devices)==nil)
+scheduled();pump(8);drain(sdkdev);pump(8)
+assert(sdkstate.session.ready)
+local sdkroot="st-direct/home/st-test"
+assert(count(sdkroot.."/sdk-device/main/state/switch","OFF")>0)
+cmd(sdkroot.."/sdk-device/main/cmd/switch","ON");drain(sdkdev);pump(8)
+assert(#injected==1 and injected[1].command=="on" and injected[1].id=="sdk-device")
+-- Changing a profile adds a new capability on the existing device.
+sdkdev.profile.components.main.capabilities[#sdkdev.profile.components.main.capabilities+1]={id="energyMeter"}
+sdkdev:emit_event(event("energyMeter","energy",1.5,"kWh"))
+scheduled();drain(sdkdev);pump(8)
+assert(count(sdkroot.."/sdk-device/main/state/energy","1.5")>0)
+-- A single incomplete inventory scan does not delete the device; confirmed absence does.
+sdklist={};scheduled();assert(sdkstate.devices["sdk-device"]~=nil)
+cmd(sdkroot.."/sdk-device/main/cmd/switch","OFF");drain(sdkdev);assert(#injected==1)
+scheduled();assert(sdkstate.devices["sdk-device"]==nil)
+pump(15)
+print("official SDK adapter simulation passed")

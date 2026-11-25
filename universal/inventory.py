@@ -2,6 +2,7 @@
 """Read-only SmartThings inventory planner. Unknown drivers never get guessed/deployed."""
 import argparse,json,re,subprocess
 from pathlib import Path
+WONJJ=re.compile(r"^(?:ef00-(?:covers|switch|lights|energy|meters|sensors|presence|pir-motion)|zcl-(?:plugs|switch|lights|covers|sensors|controls))(?:[a-z0-9-]*)-wonjj6768$")
 CAT=json.loads((Path(__file__).parent/"catalog.json").read_text())
 def items(x):return x if isinstance(x,list) else x.get("items",[])
 def normal(s):return re.sub(r"[^a-z0-9]+","-",str(s or "").lower()).strip("-")
@@ -9,16 +10,16 @@ def plan(devices,drivers,custom=()):
     known={normal(k):("official",k) for k in CAT["official"]["packages"]}
     for c in custom:
         if c.get("installed_name"):known[normal(c["installed_name"])]=("custom",c["family"])
-    indexed={x.get("driverId") or x.get("id"):x for x in drivers}
+    indexed={x.get("driverId") or x.get("id"):x for x in drivers if x.get("driverId") or x.get("id")}
     result=[]
     for d in devices:
         if d.get("type")!="ZIGBEE":continue
-        z=d.get("zigbee") or {};driver=indexed.get(z.get("driverId"),{})
+        z=d.get("zigbee") or {};driver=indexed.get(z.get("driverId") or d.get("driverId"),{})
         name=driver.get("name") or driver.get("driverName") or z.get("driverName") or ""
         key=normal(name);found=known.get(key)
         if key.startswith("st-mqtt-"):method,package="already_mqtt",None
         elif found:method,package=found
-        elif key.endswith("-wonjj6768"):method,package="wonjj",key
+        elif WONJJ.fullmatch(key):method,package="wonjj",key
         else:method,package="rules_or_review",None
         result.append({"device_id":d.get("deviceId"),"label":d.get("label") or d.get("name"),"driver_id":z.get("driverId"),"driver":name,"manufacturer":z.get("manufacturer"),"model":z.get("model"),"method":method,"package":package})
     return result
