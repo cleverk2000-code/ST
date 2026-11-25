@@ -40,6 +40,49 @@ def validate_config(cfg,family):
     if not isinstance(cfg.get("description"),str) or not cfg["description"].strip():raise ValueError("Missing driver description")
     perms=cfg.get("permissions")
     if not isinstance(perms,dict) or not {"zigbee","lan"}<=set(perms):raise ValueError("Missing driver permissions")
+# Server reported limit on total bytes. Count uncompressed file bytes, not ZIP size.
+PACKAGE_LIMIT=655360
+PACKAGE_TARGET=PACKAGE_LIMIT-8192
+def package_files(pkg):
+    paths=[]
+    for name in ("config","fingerprints","search-parameters"):
+        for ext in (".yml",".yaml"):
+            p=pkg/(name+ext)
+            if p.is_file():paths.append(p);break
+    paths.extend(p for p in (pkg/"profiles").glob("*.y*ml") if p.is_file())
+    paths.extend(p for p in (pkg/"src").rglob("*") if p.is_file())
+    return paths
+def package_bytes(pkg):
+    return sum(p.stat().st_size for p in package_files(pkg))
+def compact_yaml(data):
+    obj=read_yaml(data.decode("utf-8-sig"))
+    options=[data]
+    # JSON is a YAML subset. Keep the shortest lossless representation.
+    try:options.append((json.dumps(obj,ensure_ascii=False,separators=(",",":"),allow_nan=False)+"\n").encode("utf-8"))
+    except (TypeError,ValueError):pass
+    options.append(yaml.safe_dump(obj,allow_unicode=True,sort_keys=False,default_flow_style=True,width=1000000).encode("utf-8"))
+    options.append(yaml.safe_dump(obj,allow_unicode=True,sort_keys=False,default_flow_style=None,width=1000000).encode("utf-8"))
+    if isinstance(obj,dict):
+        options.append("".join(yaml.safe_dump({k:v},allow_unicode=True,sort_keys=False,default_flow_style=None,width=1000000) for k,v in obj.items()).encode("utf-8"))
+    valid=[]
+    for candidate in options:
+        if read_yaml(candidate.decode("utf-8-sig"))==obj:valid.append(candidate)
+    return min(valid,key=len)
+def optimize_package(pkg,force=False):
+    before=package_bytes(pkg)
+    if before>PACKAGE_TARGET or force:
+        changes=[]
+        for p in package_files(pkg):
+            if p.suffix not in (".yaml",".yml"):continue
+            data=p.read_bytes();new=compact_yaml(data)
+            if len(new)<len(data):changes.append((p,new))
+        after=before+sum(len(new)-p.stat().st_size for p,new in changes)
+        if after>PACKAGE_LIMIT:raise ValueError(f"{pkg.name}: {after} bytes after lossless compaction; limit {PACKAGE_LIMIT}; no profiles removed")
+        for p,new in changes:p.write_bytes(new)
+    after=package_bytes(pkg)
+    if after>PACKAGE_LIMIT:raise ValueError(f"{pkg.name}: {after} bytes exceeds {PACKAGE_LIMIT}")
+    print(f"{pkg.name}: package bytes {before} -> {after} / {PACKAGE_LIMIT}")
+    return after
 def textpref(name,title,default="",password=False,maxlen=64):
     return dict(name=name,title=title,description=title,required=False,preferenceType="string",
         definition=dict(stringType="password" if password else "text",minLength=0,maxLength=maxlen,default=default))
@@ -144,6 +187,7 @@ def build(z,packages,out):
             module=dest/"src/st_mqtt";module.mkdir()
             for p in (ROOT/"lua").glob("*.lua"):shutil.copy2(p,module/p.name)
             for p in (dest/"profiles").glob("*.y*ml"):p.write_text(patch_profile(p.read_text(encoding="utf-8")),encoding="utf-8")
+            optimize_package(dest)
             (dest/"LICENSE.upstream").write_bytes(z.read(f"{root}/LICENSE"))
         (temp/"manifest.json").write_text(json.dumps({"upstream":UPSTREAM,"revision":REV,"packages":packages},indent=2),encoding="utf-8")
         temp.rename(out)

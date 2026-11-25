@@ -2,7 +2,8 @@
 param(
  [Parameter(Mandatory=$true)][string]$Build,
  [Parameter(Mandatory=$true)][guid]$ChannelId,
- [Parameter(Mandatory=$true)][guid]$HubId
+ [Parameter(Mandatory=$true)][guid]$HubId,
+ [string]$Family
 )
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path -LiteralPath $Build).Path
@@ -24,14 +25,22 @@ foreach($entry in $decoded){
  $families+= $family
 }
 if($families.Count -eq 0){throw 'Missing manifest'}
+if($Family){
+ if($families -notcontains $Family){throw 'Family not in manifest'}
+ $families=@($Family)
+}
 $zipDir=Join-Path $root ('cli-preflight-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $zipDir -Force | Out-Null
 foreach($family in $families){
  $pkg=Join-Path $root $family
  $zip=Join-Path $zipDir ($family+'.zip')
+ & $exe @pa (Join-Path $PSScriptRoot "compact_package.py") $pkg
+ if($LASTEXITCODE -ne 0){throw "Size validation failed: $family; nothing uploaded."}
  Write-Host "Checking CLI package: $family" -ForegroundColor Cyan
  & smartthings edge:drivers:package $pkg --build-only $zip
  if($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $zip)){throw "CLI package check failed: $family; nothing uploaded."}
+ & $exe @pa (Join-Path $PSScriptRoot "compact_package.py") $zip --zip
+ if($LASTEXITCODE -ne 0){throw "ZIP size validation failed: $family; nothing uploaded."}
 }
 $ok=@()
 foreach($family in $families){

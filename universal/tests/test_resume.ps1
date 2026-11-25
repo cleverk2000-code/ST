@@ -2,6 +2,7 @@ $ErrorActionPreference='Stop'
 $hub='4bea0363-9f70-41fc-873e-79abc1a614b7'
 $channel='0a5fa625-b1aa-4046-a5fa-8bf46aeb8331'
 $root=Join-Path ([IO.Path]::GetTempPath()) ('st-resume-'+[guid]::NewGuid().ToString('N'))
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 $global:preflight=0
 $global:uploads=0
 $global:expected=7
@@ -18,7 +19,7 @@ function global:smartthings {
   if($args[1] -isnot [string] -or -not (Test-Path -LiteralPath $args[1] -PathType Container)){throw 'Invalid scalar path'}
   $global:preflight++
   if($global:failAt -eq $global:preflight){$global:LASTEXITCODE=1;return}
-  [IO.File]::WriteAllText([string]$args[3],'mock zip')
+  [IO.Compression.ZipFile]::CreateFromDirectory([string]$args[1],[string]$args[3])
  }elseif($args[1] -eq '--upload'){
   if($global:preflight -ne $global:expected){throw 'Incomplete preflight'}
   if(-not (Test-Path -LiteralPath $args[2])){throw 'Missing package ZIP'}

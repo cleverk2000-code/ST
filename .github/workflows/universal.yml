@@ -24,6 +24,7 @@ jobs:
       - run: lua5.3 direct/tests/test_model.lua && lua5.3 direct/tests/test_runtime.lua
       - run: python universal/build.py --all-official --wonjj ef00-covers-2-wonjj6768 ef00-presence-general-2-wonjj6768 zcl-plugs-wonjj6768 zcl-sensors-wonjj6768 --out /tmp/st-universal
       - run: python universal/repair_profiles.py /tmp/st-universal --check
+      - run: python universal/compact_package.py /tmp/st-universal/zcl-sensors
       - run: find /tmp/st-universal -name '*.lua' -not -path '*/test/*' -not -path '*/tests/*' -exec luac5.3 -p {} \;
       - uses: actions/upload-artifact@v4
         with:

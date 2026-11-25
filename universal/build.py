@@ -87,6 +87,7 @@ def build_sdk(archive,package,dest,family,license_id,expected=None):
         for p in profiles:p.write_text(direct.patch_profile(p.read_text(encoding="utf-8")),encoding="utf-8")
         module=dest/"src/st_mqtt";module.mkdir()
         for p in (D/"lua").glob("*.lua"):shutil.copy2(p,module/p.name)
+        direct.optimize_package(dest)
         # Preserve license/notice and require explicit compatible license.
         if license_id not in {"MIT","Apache-2.0","BSD-2-Clause","BSD-3-Clause"}:raise ValueError("License requires review")
         license_path=next((n for n in (root+"/LICENSE",root+"/LICENSE.txt",root+"/LICENSE.md") if n in z.namelist()),None)

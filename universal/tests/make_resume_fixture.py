@@ -8,6 +8,8 @@ root.mkdir(parents=True,exist_ok=True)
 for n in names:
  p=root/n
  (p/"profiles").mkdir(parents=True,exist_ok=True)
+ (p/"src").mkdir(exist_ok=True)
+ (p/"src/init.lua").write_text("return {}")
  cfg={"name":"ST MQTT Test","packageKey":build.direct.package_key(n),"description":"Test","permissions":{"zigbee":{},"lan":{}}}
  (p/"config.yml").write_text(build.yaml.safe_dump(cfg),encoding="utf-8")
  (p/"profiles"/"test.yml").write_text(build.direct.patch_profile("{name: test, components: []}"),encoding="utf-8")
