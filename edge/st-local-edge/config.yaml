@@ -1,0 +1,7 @@
+name: ST Local Edge
+packageKey: cleverk2000.st-local-edge
+description: Experimental local MQTT bridge for existing SmartThings devices
+vendorSupportInformation: https://github.com/cleverk2000-code/ST
+permissions:
+  lan: {}
+  discovery: {}

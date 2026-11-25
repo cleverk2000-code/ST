@@ -1,0 +1,77 @@
+name: bridge
+components:
+  - id: main
+    capabilities:
+      - id: switch
+        version: 1
+      - id: refresh
+        version: 1
+    categories:
+      - name: Switch
+  - id: commandOn
+    label: MQTT ON request
+    capabilities:
+      - id: button
+        version: 1
+    categories:
+      - name: RemoteController
+  - id: commandOff
+    label: MQTT OFF request
+    capabilities:
+      - id: button
+        version: 1
+    categories:
+      - name: RemoteController
+preferences:
+  - name: brokerIp
+    title: Broker IPv4
+    description: HA VM LAN IPv4 address
+    required: true
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 7
+      maxLength: 15
+      default: 192.168.0.19
+  - name: brokerPort
+    title: Broker port
+    required: true
+    preferenceType: integer
+    definition:
+      minimum: 1
+      maximum: 65535
+      default: 1883
+  - name: mqttUser
+    title: MQTT username
+    required: false
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 0
+      maxLength: 64
+      default: ""
+  - name: mqttPassword
+    title: MQTT password
+    required: false
+    preferenceType: string
+    definition:
+      stringType: password
+      minLength: 0
+      maxLength: 128
+      default: ""
+  - name: physicalId
+    title: Physical device UUID
+    description: Existing SmartThings device UUID, not the proxy UUID
+    required: true
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 36
+      maxLength: 36
+      default: "00000000-0000-0000-0000-000000000000"
+  - name: enabled
+    title: Enable bridge
+    required: true
+    preferenceType: boolean
+    definition:
+      default: false

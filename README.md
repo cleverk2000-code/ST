@@ -63,3 +63,7 @@ HACS → 우측 ⋮ → 사용자 지정 저장소 → https://github.com/clever
 - https://developer.smartthings.com/docs/automations/rules
 - https://www.home-assistant.io/integrations/mqtt/
 
+
+## 전용 Edge 드라이버 (v0.2.0 실험판)
+
+TAustin 대체용 [ST Local Edge 설치 및 테스트 가이드](edge/README.md)를 추가했습니다. 기존 HACS 통합 및 TAustin 경로는 유지합니다. 실제 허브 설치는 아직 검증되지 않았습니다.
