@@ -13,3 +13,8 @@ class SizeTest(unittest.TestCase):
    path=Path(td)/"test.zip"
    with zipfile.ZipFile(path,"w",compression=zipfile.ZIP_DEFLATED) as z:z.writestr("src/init.lua",b"x"*655361)
    with self.assertRaises(ValueError):c.verify_zip(path)
+
+ def test_cli_exclusions(self):
+  with tempfile.TemporaryDirectory() as td:
+   p=Path(td);(p/"src/test").mkdir(parents=True);(p/"src/init.lua").write_bytes(b"x"*20);(p/"src/test/example.lua").write_bytes(b"x"*700000)
+   self.assertEqual(c.build.direct.package_bytes(p),20)

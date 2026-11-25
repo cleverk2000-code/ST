@@ -50,7 +50,8 @@ def package_files(pkg):
             p=pkg/(name+ext)
             if p.is_file():paths.append(p);break
     paths.extend(p for p in (pkg/"profiles").glob("*.y*ml") if p.is_file())
-    paths.extend(p for p in (pkg/"src").rglob("*") if p.is_file())
+    # SmartThings CLI default excludes src/test/** and src/tests/**.
+    paths.extend(p for p in (pkg/"src").rglob("*") if p.is_file() and p.relative_to(pkg/"src").parts[0] not in ("test","tests"))
     return paths
 def package_bytes(pkg):
     return sum(p.stat().st_size for p in package_files(pkg))
