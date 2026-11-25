@@ -67,7 +67,7 @@ def specs(d, status=None):
     if not local:
         return []
     caps=components(d).get("main",set())
-    if caps & {"lock","doorControl","garageDoorControl","valve","thermostatMode","alarm","smokeDetector"}:
+    if caps & {"lock","doorControl","garageDoorControl","valve","thermostatMode","alarm","smokeDetector","gasDetector","carbonMonoxideDetector","thermostatHeatingSetpoint","thermostatCoolingSetpoint","ovenMode","securitySystem"}:
         return []
     if "windowShade" in caps:
         fields=["shade","stop"]
@@ -109,34 +109,46 @@ def number_guard(device,cap,attr,component,minimum,maximum,trigger,actions):
 def rule_name(proxy, suffix):
     return f"STLB1 {uid(proxy)} {suffix}"
 
+def grouped(triggers,actions):
+    """Only these outer operands subscribe; inner branches read cached values."""
+    return {"if":{"or":triggers,"then":actions}}
+
 def make_rules(physical,proxy,fields):
     physical,proxy=uid(physical),uid(proxy)
     if physical==proxy: raise ValueError("Physical and proxy must differ")
     fields=set(fields)
     if not fields or fields- (set(ENUMS)|set(NUMBERS)|{"stop","button"}) or {"switch","shade"}<=fields or ("stop" in fields and "shade" not in fields) or ("position" in fields and "shade" not in fields) or ("brightness" in fields and "switch" not in fields):
         raise ValueError("Unsupported field combination")
-    rules=[]; sync=[]
+    rules=[]; report_actions=[]; report_triggers=[]
     def add(suffix,action):
         rules.append({"name":rule_name(proxy,suffix),"actions":[action]})
+    def eq_condition(left,value):
+        return {"equals":{"left":left,"right":{"string":value}}}
     for field,(cap,attr,comp,values) in ENUMS.items():
         if field not in fields: continue
+        target,target_cap,target_cmd=REPORT_TARGETS[field]
         for value,code in values.items():
-            target,target_cap,target_cmd=REPORT_TARGETS[field]
+            report_triggers.append(eq_condition(operand(physical,cap,attr),value))
             action=command(proxy,target_cap,target_cmd,target,[{"integer":code}])
-            add(f"{field} {code}",eq(operand(physical,cap,attr),value,[action]))
-            sync.append(eq(operand(physical,cap,attr,trigger="Never"),value,[action]))
+            report_actions.append(eq(operand(physical,cap,attr,trigger="Never"),value,[action]))
     for field,(cap,attr,comp,lo,hi) in NUMBERS.items():
         if field not in fields: continue
         target,target_cap,target_cmd=REPORT_TARGETS[field]
         action=command(proxy,target_cap,target_cmd,target,[operand(physical,cap,attr,trigger="Never")])
-        add(f"{field} report",number_guard(physical,cap,attr,"main",lo,hi,"Always",[action]))
-        sync.append(number_guard(physical,cap,attr,"main",lo,hi,"Never",[action]))
+        report_triggers.append({"greaterThanOrEquals":{"left":operand(physical,cap,attr),"right":{"integer":lo}}})
+        report_actions.append(number_guard(physical,cap,attr,"main",lo,hi,"Never",[action]))
+    if report_actions:
+        report_triggers.append(eq_condition(operand(proxy,"button","button","sync"),"pushed"))
+        add("report",grouped(report_triggers,report_actions))
+    # Physical buttons have their own trigger: never replay a cached button press on sync.
     if "button" in fields:
+        triggers=[];actions=[]
         for value,code in BUTTONS.items():
-            add(f"button {code}",eq(operand(physical,"button","button"),value,
+            triggers.append(eq_condition(operand(physical,"button","button"),value))
+            actions.append(eq(operand(physical,"button","button",trigger="Never"),value,
                 [command(proxy,"audioVolume","setVolume","reportC",[{"integer":code}])]))
-    if sync:
-        add("sync",eq(operand(proxy,"button","button","sync"),"pushed",sync))
+        add("button",grouped(triggers,actions))
+    # Retain the proven separate command components. Do not let report events run commands.
     pairs=[]
     if "switch" in fields: pairs += [("commandOn","switch","on"),("commandOff","switch","off")]
     if "shade" in fields:

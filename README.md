@@ -19,7 +19,7 @@ PAT 발급: https://account.smartthings.com/tokens (기기 읽기/삭제 및 Rul
 
 ## 기기 지원
 
-main 컴포넌트의 로컬 기기만 지원. switch, light 및 brightness, windowShade 및 position/stop, motion, contact, presence, water, temperature, humidity, battery, button(pushed/held/double). 안전을 위해 잠금·가스밸브·난방·차고문 등은 제외. 조명 색상, multi-component, 팬 속도는 미지원. 각 기기당 가상 프록시 1개와 Local Rules가 자동 생성되며 기존 물리 기기 드라이버는 변경하지 않음. 10개 컴포넌트로 구성한 공통 프록시 프로필. 최대 프록시 64개, 실제 허브/Rules API 제한에 따라 더 적을 수 있음.
+main 컴포넌트의 로컬 기기만 지원. switch, light 및 brightness, windowShade 및 position/stop, motion, contact, presence, water, temperature, humidity, battery, button(pushed/held/double). 안전을 위해 잠금·가스밸브·난방·차고문 등은 제외. 조명 색상, multi-component, 팬 속도는 미지원. 각 기기당 가상 프록시 1개와 Local Rules가 자동 생성되며 기존 물리 기기 드라이버는 변경하지 않음. 10개 컴포넌트로 구성한 공통 프록시 프로필. 최대 프록시 64개(설계상), 실제 허브/Rules API 제한에 따라 더 적을 수 있음. 상태 보고와 초기 동기화를 한 Rule로 묶고 명령 Rule은 분리: 일반 센서 1개, 스위치 3개, 위치 조절 창문 5개(+버튼 이벤트가 있으면 1개). SmartThings 공식 Rules 한도는 사용자당 100개. 등록 전 확인 가능한 Rule ID와 신규 필요 수를 검사하되 다른 위치/앱의 Rule이 조회되지 않을 수 있어 실제 한도는 더 낮을 수 있습니다. 명령과 상태 보고를 분리해 동기화가 창문 제어를 발생시키지 않도록 설계했습니다.
 
 ## 복구/삭제
 

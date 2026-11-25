@@ -104,7 +104,13 @@ class Manager:
         return rule.get("name")==expected["name"] and clean(rule.get("actions"))==clean(expected["actions"])
     async def install_rules(self,api,record,data):
         loc=record["location"]; existing=await api.rules(loc)
-        for body in make_rules(record["physical"],record["proxy"],record["fields"]):
+        bodies=make_rules(record["physical"],record["proxy"],record["fields"])
+        known_ids={r["id"] for r in existing if r.get("id")}
+        known_ids.update(rid for rec in data["records"].values() for rid in rec.get("rules",{}).values())
+        known_names={r.get("name") for r in existing}|set(record["rules"])
+        needed=sum(body["name"] not in known_names for body in bodies)
+        if len(known_ids)+needed>100:raise ManagerError("SmartThings Rules budget exceeded (100 per user; other locations may also count)")
+        for body in bodies:
             named=[r for r in existing if r.get("name")==body["name"]]
             recorded=record["rules"].get(body["name"])
             if recorded and not named:
@@ -117,20 +123,28 @@ class Manager:
             if named:
                 rid=uid(named[0]["id"])
                 detail=await api.rule(loc,rid)
-                if detail.get("name")!=body["name"] or (recorded!=rid and not self.matches(detail,body)):raise ManagerError("Existing Rule contents differ")
+                if not self.matches(detail,body):raise ManagerError("Existing Rule contents differ; remove and add again")
             else:
-                created=await api.create_rule(loc,body)
+                pending=record.setdefault("uncertain_rules",[])
+                if body["name"] in pending:raise ManagerError("Previous Rule creation outcome unknown; inspect SmartThings before retry")
+                pending.append(body["name"]);await self.save(data)
+                try:created=await api.create_rule(loc,body)
+                except ApiError as exc:
+                    if 400<=exc.status<500 and exc.status!=408:
+                        pending.remove(body["name"]);await self.save(data)
+                    raise
                 rid=uid(created["id"])
                 record["rules"][body["name"]]=rid
                 await self.save(data)
                 detail=await api.rule(loc,rid)
             record["rules"][body["name"]]=rid
+            if body["name"] in record.get("uncertain_rules",[]):record["uncertain_rules"].remove(body["name"])
             await self.save(data)
             if str(detail.get("executionLocation","")).lower()!="local":raise ManagerError("Rule not Local: "+body["name"])
     async def add_many(self,api,physical_ids):
         async with self.lock:
             manager=await api.device(self.manager)
-            if not is_manager(manager):raise ManagerError("Wrong manager")
+            if not is_manager(manager) or not hub_id(manager):raise ManagerError("Wrong manager or missing hub identity")
             data=await self.load(); records=data["records"];results={}
             for key in physical_ids:
                 physical=uid(key)
@@ -174,7 +188,7 @@ class Manager:
     async def remove_many(self,api,physical_ids):
         async with self.lock:
             manager=await api.device(self.manager)
-            if not is_manager(manager):raise ManagerError("Wrong manager")
+            if not is_manager(manager) or not hub_id(manager):raise ManagerError("Wrong manager or missing hub identity")
             data=await self.load();records=data["records"];results={}
             for key in physical_ids:
                 physical=uid(key);record=records.get(physical)
@@ -208,6 +222,8 @@ class Manager:
                                 raise
                             if detail.get("name")!=name or (record["rules"].get(name)!=rid and not self.matches(detail,expected[name])):raise ManagerError("Rule ownership mismatch")
                             await api.delete_rule(record["location"],rid)
+                        unresolved=set(record.get("uncertain_rules",[]))-set(candidates)
+                        if unresolved:raise ManagerError("Unknown Rule creation outcome; inspect SmartThings before deleting proxy")
                         # Never delete a physical device. Only the verified proxy inventory ID.
                         if physical in inv:await api.delete_device(proxy)
                         else:
