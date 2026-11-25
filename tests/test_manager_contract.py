@@ -103,3 +103,14 @@ class Contract(unittest.TestCase):
         self.assertFalse(any(c["commands"][0]["component"]=="reportC" for c in cmds))
         close=next(r for r in rules if r["name"].endswith(" command close"))
         self.assertEqual(evaluate(close["actions"],state)[0]["commands"][0]["command"],"close")
+
+    def test_basic_compatibility(self):
+        fields=m["basic_fields"](["shade","stop","position","battery"])
+        self.assertEqual(fields,["shade","stop"])
+        record={"physical":D,"proxy":P,"fields":fields,"rule_mode":"basic"}
+        rules=m["record_rules"](record)
+        self.assertEqual(len(rules),11)
+        self.assertTrue(all(" basic " in r["name"] for r in rules))
+        self.assertNotIn("setShadeLevel",json.dumps(rules))
+        self.assertIn("pause",json.dumps(rules))
+        self.assertEqual(m["basic_fields"](["temperature","humidity"]),[])

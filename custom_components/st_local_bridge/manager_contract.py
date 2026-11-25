@@ -162,6 +162,44 @@ def make_rules(physical,proxy,fields):
                 [command(physical,cap,cmd,args=[operand(proxy,"switchLevel","level",component,"Never")])]))
     return rules
 
+def basic_fields(fields):
+    """Compatibility mode: only enum commands/reports, no dynamic numeric operands."""
+    return [field for field in fields if field in ENUMS or field in {"stop","button"}]
+
+def make_basic_rules(physical,proxy,fields):
+    physical,proxy=uid(physical),uid(proxy)
+    if physical==proxy:raise ValueError("Physical and proxy must differ")
+    fields=set(fields)
+    if not fields or fields-set(basic_fields(fields)) or {"switch","shade"}<=fields or ("stop" in fields and "shade" not in fields):
+        raise ValueError("Unsupported basic fields")
+    rules=[];sync=[]
+    def add(suffix,action):
+        rules.append({"name":rule_name(proxy,"basic "+suffix),"actions":[action]})
+    for field,(cap,attr,comp,values) in ENUMS.items():
+        if field not in fields:continue
+        target,target_cap,target_cmd=REPORT_TARGETS[field]
+        for value,code in values.items():
+            action=command(proxy,target_cap,target_cmd,target,[{"integer":code}])
+            add(f"{field} {code}",eq(operand(physical,cap,attr),value,[action]))
+            sync.append(eq(operand(physical,cap,attr,trigger="Never"),value,[action]))
+    if "button" in fields:
+        for value,code in BUTTONS.items():
+            add(f"button {code}",eq(operand(physical,"button","button"),value,
+                [command(proxy,"audioVolume","setVolume","reportC",[{"integer":code}])]))
+    if sync:add("sync",eq(operand(proxy,"button","button","sync"),"pushed",sync))
+    pairs=[]
+    if "switch" in fields:pairs += [("commandOn","switch","on"),("commandOff","switch","off")]
+    if "shade" in fields:
+        pairs += [("commandOn","windowShade","open"),("commandOff","windowShade","close")]
+        if "stop" in fields:pairs += [("commandStop","windowShade","pause")]
+    for component,cap,cmd in pairs:
+        add(f"command {cmd}",eq(operand(proxy,"button","button",component),"pushed",[command(physical,cap,cmd)]))
+    return rules
+
+def record_rules(record):
+    builder=make_basic_rules if record.get("rule_mode")=="basic" else make_rules
+    return builder(record["physical"],record["proxy"],record["fields"])
+
 def discovery(manager, record):
     physical=uid(record["physical"]); fields=set(record["fields"])
     base=f"{root(manager)}/{physical}"

@@ -6,13 +6,14 @@ from uuid import uuid4
 from homeassistant.components import mqtt
 from homeassistant.core import callback
 from homeassistant.helpers.storage import Store
-from .manager_contract import uid, root, hub_id, driver_id, components, specs, make_rules, discovery, REQUIRED_COMPONENTS, is_manager
+from .manager_contract import uid, root, hub_id, driver_id, components, specs, make_rules, basic_fields, record_rules, discovery, REQUIRED_COMPONENTS, is_manager
 from .manager_api import ApiError
 
 _LOGGER=logging.getLogger(__name__)
 DOMAIN="st_local_bridge"
 
 class ManagerError(Exception): pass
+class LocalRuleError(ManagerError): pass
 
 class Manager:
     def __init__(self,hass,manager):
@@ -104,7 +105,7 @@ class Manager:
         return rule.get("name")==expected["name"] and clean(rule.get("actions"))==clean(expected["actions"])
     async def install_rules(self,api,record,data):
         loc=record["location"]; existing=await api.rules(loc)
-        bodies=make_rules(record["physical"],record["proxy"],record["fields"])
+        bodies=record_rules(record)
         known_ids={r["id"] for r in existing if r.get("id")}
         known_ids.update(rid for rec in data["records"].values() for rid in rec.get("rules",{}).values())
         known_names={r.get("name") for r in existing}|set(record["rules"])
@@ -140,7 +141,27 @@ class Manager:
             record["rules"][body["name"]]=rid
             if body["name"] in record.get("uncertain_rules",[]):record["uncertain_rules"].remove(body["name"])
             await self.save(data)
-            if str(detail.get("executionLocation","")).lower()!="local":raise ManagerError("Rule not Local: "+body["name"])
+            if str(detail.get("executionLocation","")).lower()!="local":raise LocalRuleError("Rule not Local: "+body["name"])
+    async def compatibility_fallback(self,api,record,data):
+        """Only after a confirmed non-Local Rule, remove our known rules and retry discrete capabilities."""
+        if record.get("rule_mode")=="basic" or record.get("uncertain_rules"):
+            raise ManagerError("Cannot safely switch to compatibility mode")
+        basic=basic_fields(record["fields"])
+        if not basic:raise ManagerError("Numeric capabilities require extended local Rules; not supported by this hub")
+        expected={body["name"] for body in record_rules(record)}
+        for name,rid in list(record["rules"].items()):
+            if name not in expected:raise ManagerError("Rule ownership mismatch")
+            try:detail=await api.rule(record["location"],uid(rid))
+            except ApiError as exc:
+                if exc.status!=404:raise
+            else:
+                if detail.get("name")!=name:raise ManagerError("Rule identity mismatch")
+                await api.delete_rule(record["location"],rid)
+            del record["rules"][name];await self.save(data)
+        record["requested_fields"]=list(record.get("requested_fields",record["fields"]))
+        record["fields"]=basic;record["rule_mode"]="basic"
+        await self.save(data)
+        await self.install_rules(api,record,data)
     async def add_many(self,api,physical_ids):
         async with self.lock:
             manager=await api.device(self.manager)
@@ -159,7 +180,8 @@ class Manager:
                     record=records.get(physical)
                     if record and record.get("phase")=="active":
                         results[physical]="Already active";continue
-                    if record and set(record["fields"])!=set(fields):raise ManagerError("Capabilities changed; remove and add again")
+                    if record and record.get("phase")=="removing":raise ManagerError("Removal pending; complete removal first")
+                    if record and set(record.get("requested_fields",record["fields"]))!=set(fields):raise ManagerError("Capabilities changed; remove and add again")
                     if not record:
                         cats=[x.get("name","").lower() for c in dev.get("components",[]) for x in c.get("categories",[])]
                         record={"physical":physical,"location":uid(dev["locationId"]),"name":dev.get("label") or dev.get("name") or physical,
@@ -170,12 +192,15 @@ class Manager:
                     if record.get("proxy") and record["proxy"]!=proxy:raise ManagerError("Proxy changed; remove stale registration first")
                     record["proxy"]=proxy;await self.save(data)
                     await self.rpc("deactivate",physical=physical)
-                    await self.install_rules(api,record,data)
+                    try:await self.install_rules(api,record,data)
+                    except LocalRuleError:
+                        await self.compatibility_fallback(api,record,data)
                     # Discovery is enabled only after every Rule is verified Local.
                     await self.rpc("activate",physical=physical,fields=record["fields"])
                     record["phase"]="active";await self.save(data)
                     await self.publish_discovery(record)
-                    results[physical]="Active"
+                    omitted=sorted(set(record.get("requested_fields",record["fields"]))-set(record["fields"]))
+                    results[physical]="Active" if record.get("rule_mode")!="basic" else "Active (compatibility mode"+("; omitted: "+", ".join(omitted) if omitted else "")+")"
                 except Exception as exc:
                     # Keep the journal so retries/removal can recover partial cloud mutations.
                     record=records.get(physical)
@@ -205,7 +230,7 @@ class Manager:
                         record["proxy"]=proxy;await self.save(data)
                     proxy=record.get("proxy")
                     if proxy:
-                        expected={r["name"]:r for r in make_rules(physical,proxy,record["fields"])}
+                        expected={r["name"]:r for r in record_rules(record)}
                         candidates=dict(record["rules"])
                         for item in await api.rules(record["location"]):
                             name=item.get("name")

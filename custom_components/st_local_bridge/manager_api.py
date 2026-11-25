@@ -14,15 +14,24 @@ class Api:
         self.session=session;self._token=token
     async def request(self,method,path,body=None,params=None):
         if not path.startswith("/") or path.startswith("//"): raise ValueError("Invalid path")
-        async with self.session.request(method,BASE+path,json=body,params=params,
-                headers={"Authorization":"Bearer "+self._token,"Accept":"application/json"},
-                timeout=ClientTimeout(total=25),allow_redirects=False) as response:
-            if response.status>=300: raise ApiError(response.status,method+" "+path.split("?")[0])
-            if response.status==204: return {}
-            raw=await response.read()
-            if not raw: return {}
-            import json
-            return json.loads(raw)
+        for attempt in range(4):
+            async with self.session.request(method,BASE+path,json=body,params=params,
+                    headers={"Authorization":"Bearer "+self._token,"Accept":"application/json"},
+                    timeout=ClientTimeout(total=25),allow_redirects=False) as response:
+                # An explicit 429 means the request was refused. Do not retry uncertain POST failures.
+                if response.status==429 and attempt<3:
+                    raw=response.headers.get("Retry-After") or response.headers.get("X-RateLimit-Reset") or "5"
+                    try:delay=max(1,min(120,float(raw)+1))
+                    except (TypeError,ValueError):delay=5
+                    await response.read()
+                else:
+                    if response.status>=300:raise ApiError(response.status,method+" "+path.split("?")[0])
+                    if response.status==204:return {}
+                    raw=await response.read()
+                    if not raw:return {}
+                    import json
+                    return json.loads(raw)
+            await asyncio.sleep(delay)
     async def list(self,path,params=None):
         result=[]; seen=set()
         while True:
