@@ -8,10 +8,8 @@ local contexts = {}
 local workers = {}
 local pending_discovery = 0
 
-local function send(sock, data)
-  local n, err = sock:send(data)
-  if n ~= #data then error(err or "partial send") end
-end
+local transport = require "transport"
+local send = transport.send
 
 local function discovery(driver, _, should_continue)
   local now = socket.gettime()
@@ -28,7 +26,7 @@ local function discovery(driver, _, should_continue)
       pending_discovery = now + 30
       driver:try_create_device({
         type = "LAN", device_network_id = dni, label = "ST Local Edge " .. i,
-        profile = "bridge", manufacturer = "ST Local Bridge", model = "0.2.0"
+        profile = "bridge", manufacturer = "ST Local Bridge", model = "0.2.1"
       })
       return
     end
@@ -61,29 +59,21 @@ end
 local function run_session(ctx, sock)
   local p, prefix = ctx.config, "st/local/" .. ctx.config.id
   local availability = prefix .. "/availability"
+  ctx.stage = "tcp_connect"
   sock:settimeout(5)
-  assert(sock:connect(p.host, p.port))
+  assert(sock:connect(p.host, p.port), "tcp_connect_failed")
   if not current(ctx) then return end
   -- Client ID <= 23 characters, unique by proxy UUID prefix and suffix.
   local raw = ctx.device.id:gsub("-", "")
+  ctx.stage = "connect_send"
   send(sock, wire.connect("stl-" .. raw:sub(1,10) .. raw:sub(-9), p.user, p.password, availability))
+  ctx.stage = "connack"
   local buffer, phase, deadline = "", "connack", socket.gettime() + 8
   local next_ping, pong_deadline, next_heartbeat = 0, nil, 0
   sock:settimeout(1)
   while current(ctx) do
-    local data, err, partial = sock:receive(1)
-    if data then
-      -- Drain already-readable bytes without waiting for an arbitrary packet size.
-      buffer = buffer .. data
-      sock:settimeout(0)
-      local chunk, _, rest = sock:receive(4096)
-      sock:settimeout(1)
-      buffer = buffer .. (chunk or rest or "")
-    elseif err ~= "timeout" then
-      error(err or "receive failed")
-    elseif partial and #partial > 0 then
-      buffer = buffer .. partial
-    end
+    local data = transport.read(sock)
+    if #data > 0 then buffer = buffer .. data else socket.sleep(0.02) end
     while true do
       local h, body, remaining = wire.pop(buffer)
       if not h then break end
@@ -91,18 +81,22 @@ local function run_session(ctx, sock)
       local kind = math.floor(h / 16)
       if phase == "connack" then
         assert(h == 0x20 and #body == 2 and body:byte(1) == 0 and body:byte(2) == 0, "CONNACK rejected")
+        ctx.stage = "subscribe_send"
         send(sock, wire.subscribe(prefix .. "/on", prefix .. "/off"))
         phase, deadline = "suback", socket.gettime() + 8
+        ctx.stage = "suback"
       elseif phase == "suback" then
         assert(h == 0x90 and #body == 4 and body:sub(1,2) == wire.u16(1)
           and body:byte(3) <= 1 and body:byte(4) <= 1, "SUBACK rejected")
         phase = "ready"
+        ctx.stage = "initial_publish"
         -- Clear retained state from a previous session; wait for a real report.
         send(sock, wire.publish(prefix .. "/state", "", true))
         send(sock, wire.publish(availability, "online", true))
         ctx.connected, ctx.ever_ready = true, true
         next_ping, next_heartbeat = socket.gettime() + 10, socket.gettime()
-        log.info("MQTT ready: " .. p.id)
+        ctx.stage = "ready"
+        log.info("ST Local Edge 0.2.1 MQTT ready: " .. p.id)
       elseif kind == 3 then
         local topic, payload, id, retained = wire.decode_publish(h, body)
         local component = wire.command(prefix, topic, payload, retained)
@@ -138,6 +132,7 @@ local function run_session(ctx, sock)
     end
   end
   if ctx.connected then
+    ctx.stage = "shutdown"
     send(sock, wire.publish(availability, "offline", true))
     send(sock, wire.frame(0xE0, ""))
   end
@@ -147,13 +142,21 @@ local function worker(ctx)
   local delay = 1
   while current(ctx) do
     ctx.connected, ctx.ever_ready = false, false
+    ctx.stage = "socket_create"
     local sock = socket.tcp()
     if sock then
       local ok, err = pcall(run_session, ctx, sock)
       sock:close()
       if not ok and current(ctx) then
         -- Do not log credentials or raw MQTT packets.
-        log.warn("MQTT session ended; retrying")
+        local reason = tostring(err)
+        local known = {"short_write","send_timeout","send_closed","send_failed","invalid_read_type","receive_closed","receive_failed","tcp_connect_failed","CONNACK rejected","SUBACK rejected","MQTT handshake timeout","PINGRESP timeout","unexpected MQTT packet","packet too large","invalid remaining length"}
+        local label = "runtime_error"
+        for _, item in ipairs(known) do
+          if reason:find(item, 1, true) then label = item; break end
+        end
+        local line = reason:match(":(%d+):") or "?"
+        log.warn("ST Local Edge 0.2.1 MQTT failure stage=" .. tostring(ctx.stage) .. " reason=" .. label .. " line=" .. line .. "; retrying")
       end
     end
     ctx.connected = false

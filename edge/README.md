@@ -31,3 +31,7 @@
 - 상태는 세션 시작 시 이전 retained 값을 지우고 실제 보고를 기다립니다. 연결이 끊긴 동안 명령은 재생하지 않습니다. QoS1 중복 명령은 가능하므로 실제 동작은 절대 ON/OFF만 사용.
 - MQTT Discovery 및 물리 기기 일괄 자동 생성은 후속 구현. TLS 미지원. 프록시 1개당 연결 1개.
 - 실제 TV 허브 SDK, 패키징, 설치 및 Rules 실행은 아직 실기 검증되지 않았습니다. CLI 계정 인증은 사용자가 직접 수행해야 합니다.
+
+## Edge v0.2.1 hotfix
+
+TV 허브에서 MQTT 인증 직후 연결 종료가 반복되는 현상을 대응합니다. 0초 timeout bulk receive를 제거하고 1바이트 cosock 수신, timeout/partial 처리, send 반환값 호환, 단계별 안전한 오류 로그를 추가했습니다. 원인 확정 및 실기 재검증은 아직 필요합니다. 같은 packageKey로 다시 package → assign → install 하세요. 기존 설정은 유지될 것으로 예상되나 설치 후 확인하세요.
