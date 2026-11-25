@@ -44,3 +44,6 @@ try {
  Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction SilentlyContinue
  Remove-Item Function:\smartthings -ErrorAction SilentlyContinue
 }
+
+# Expected mock failure must not leak into GitHub Actions' shell exit wrapper.
+$global:LASTEXITCODE=0
