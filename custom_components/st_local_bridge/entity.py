@@ -14,7 +14,7 @@ class BridgeEntity(Entity):
 
     def __init__(self, entry):
         self.key = entry.data["device_id"]
-        self._native = entry.data.get("native_edge", False)
+        self._native = entry.data.get("native_edge", False) or entry.data["kind"] == "cover"
         self._attr_available = not self._native
         self._online = False
         self._cancel_watchdog = None
@@ -32,18 +32,28 @@ class BridgeEntity(Entity):
             self._cancel_watchdog()
             self._cancel_watchdog = None
 
+    _state_suffix = "state"
+
+    @callback
+    def _set_payload(self, payload):
+        value = parse_state(payload)
+        if value is not None or (self._native and payload == ""):
+            self._attr_is_on = value
+            self.async_write_ha_state()
+
+    @callback
+    def _clear_state(self):
+        self._attr_is_on = None
+
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
 
         @callback
         def receive(message):
-            value = parse_state(message.payload)
-            if value is not None or (self._native and message.payload == ""):
-                self._attr_is_on = value
-                self.async_write_ha_state()
+            self._set_payload(message.payload)
 
         self.async_on_remove(await mqtt.async_subscribe(
-            self.hass, topic(self.key, "state"), receive, qos=1
+            self.hass, topic(self.key, self._state_suffix), receive, qos=1
         ))
         if not self._native:
             return
@@ -52,7 +62,7 @@ class BridgeEntity(Entity):
         def unavailable(_now):
             self._cancel_watchdog = None
             self._attr_available = False
-            self._attr_is_on = None
+            self._clear_state()
             self.async_write_ha_state()
 
         @callback

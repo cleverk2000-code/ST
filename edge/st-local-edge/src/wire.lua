@@ -30,9 +30,10 @@ function M.connect(id, user, password, availability)
   return M.frame(0x10, body .. M.str(user) .. M.str(password))
 end
 
-function M.subscribe(topic1, topic2)
-  return M.frame(0x82, M.u16(1) .. M.str(topic1) .. string.char(1)
-    .. M.str(topic2) .. string.char(1))
+function M.subscribe(...)
+  local body = M.u16(1)
+  for _, topic in ipairs({...}) do body = body .. M.str(topic) .. string.char(1) end
+  return M.frame(0x82, body)
 end
 
 function M.publish(topic, payload, retain)
@@ -77,10 +78,15 @@ function M.puback(id)
   return M.frame(0x40, id)
 end
 
-function M.command(prefix, topic, payload, retained)
+function M.command(prefix, topic, payload, retained, cover)
   if retained or payload ~= "pushed" then return nil end
   if topic == prefix .. "/on" then return "commandOn" end
   if topic == prefix .. "/off" then return "commandOff" end
+  if cover and topic == prefix .. "/stop" then return "commandStop" end
+end
+
+function M.shade_state(code)
+  return ({[0]="closed",[1]="open",[2]="opening",[3]="closing",[4]="partially open",[5]="paused",[6]="unknown"})[code]
 end
 
 function M.uuid(s)

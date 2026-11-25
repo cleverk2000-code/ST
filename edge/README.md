@@ -35,3 +35,13 @@
 ## Edge v0.2.1 hotfix
 
 TV 허브에서 MQTT 인증 직후 연결 종료가 반복되는 현상을 대응합니다. 0초 timeout bulk receive를 제거하고 1바이트 cosock 수신, timeout/partial 처리, send 반환값 호환, 단계별 안전한 오류 로그를 추가했습니다. 원인 확정 및 실기 재검증은 아직 필요합니다. 같은 packageKey로 다시 package → assign → install 하세요. 기존 설정은 유지될 것으로 예상되나 설치 후 확인하세요.
+
+## v0.3.0: 창문 브리지
+
+기존 bridge 프로필 및 기기 설정은 그대로 유지합니다. 창문은 새 bridge-v3 프로필의 프록시가 필요합니다. 기존 창문용 ST Local Edge 1의 Enable bridge를 OFF한 뒤 드라이버를 업데이트하고 주변 검색하여 새 ST Local Edge 기기를 만드세요. 실제 창문을 삭제하지 마세요. 새 프록시 설정에 동일한 실제 UUID와 MQTT 접속 정보, Window cover mode=ON, Enable bridge=ON을 지정합니다. 동일 UUID를 사용하는 이전 프록시는 OFF 상태를 유지합니다.
+
+HA HACS 통합도 0.3.0으로 갱신 후 재시작하고 종류 cover로 등록합니다. 예전 등록이 있으면 삭제 후 새 종류로 추가해야 합니다(기존 공식 SmartThings 통합은 유지). MQTT 상태 토픽 /shade, 명령 /on /off /stop, payload pushed. 상태는 실제 windowShade 보고를 사용합니다. 백분율 위치와 배터리 동기화는 아직 구현되지 않았습니다. 정지는 실제 기기가 pause를 지원하는지 검증하세요.
+
+    python tools/edge_rules.py --device PHYSICAL_UUID --proxy NEW_PROXY_UUID --kind cover
+
+출력된 10개 Rules를 개별 설치(또는 앱의 해당 조건/동작으로 생성)하고 각각 로컬 실행 확인. 기존 물리 창문 스케줄은 테스트 중 일시 정지하고 수동으로 안전한 환경에서 확인하세요. 창문 움직임을 직접 볼 수 있는 상태에서만 첫 제어 테스트를 진행하세요. 위치 조회 및 명령은 추후 지원. 브리지 초기화 시 상태는 실제 보고 전까지 unknown입니다.

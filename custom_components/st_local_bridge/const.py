@@ -3,7 +3,7 @@ from uuid import UUID
 
 DOMAIN = "st_local_bridge"
 PREFIX = "st/local"
-KINDS = ("switch", "motion", "contact", "moisture", "presence")
+KINDS = ("switch", "motion", "contact", "moisture", "presence", "cover")
 
 def device_key(value: str) -> str:
     return str(UUID(value.strip()))

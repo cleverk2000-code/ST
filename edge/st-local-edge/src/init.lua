@@ -26,7 +26,7 @@ local function discovery(driver, _, should_continue)
       pending_discovery = now + 30
       driver:try_create_device({
         type = "LAN", device_network_id = dni, label = "ST Local Edge " .. i,
-        profile = "bridge", manufacturer = "ST Local Bridge", model = "0.2.1"
+        profile = "bridge-v3", manufacturer = "ST Local Bridge", model = "0.3.0"
       })
       return
     end
@@ -49,7 +49,12 @@ local function config(driver, device)
       return nil
     end
   end
-  return {id=id, host=p.brokerIp, port=port, user=p.mqttUser, password=p.mqttPassword}
+  local cover = p.coverMode == true
+  if cover and (not device.profile.components.commandStop or not device.profile.components.shadeReport) then
+    log.warn("Cover mode requires bridge-v3 profile")
+    return nil
+  end
+  return {id=id, host=p.brokerIp, port=port, user=p.mqttUser, password=p.mqttPassword, cover=cover}
 end
 
 local function current(ctx)
@@ -59,6 +64,9 @@ end
 local function run_session(ctx, sock)
   local p, prefix = ctx.config, "st/local/" .. ctx.config.id
   local availability = prefix .. "/availability"
+  local state_topic = prefix .. (p.cover and "/shade" or "/state")
+  local subscriptions = {prefix .. "/on", prefix .. "/off"}
+  if p.cover then subscriptions[#subscriptions+1] = prefix .. "/stop" end
   ctx.stage = "tcp_connect"
   sock:settimeout(5)
   assert(sock:connect(p.host, p.port), "tcp_connect_failed")
@@ -82,24 +90,24 @@ local function run_session(ctx, sock)
       if phase == "connack" then
         assert(h == 0x20 and #body == 2 and body:byte(1) == 0 and body:byte(2) == 0, "CONNACK rejected")
         ctx.stage = "subscribe_send"
-        send(sock, wire.subscribe(prefix .. "/on", prefix .. "/off"))
+        send(sock, wire.subscribe(table.unpack(subscriptions)))
         phase, deadline = "suback", socket.gettime() + 8
         ctx.stage = "suback"
       elseif phase == "suback" then
-        assert(h == 0x90 and #body == 4 and body:sub(1,2) == wire.u16(1)
-          and body:byte(3) <= 1 and body:byte(4) <= 1, "SUBACK rejected")
+        assert(h == 0x90 and #body == 2 + #subscriptions and body:sub(1,2) == wire.u16(1), "SUBACK rejected")
+        for i=3,#body do assert(body:byte(i) <= 1, "SUBACK rejected") end
         phase = "ready"
         ctx.stage = "initial_publish"
         -- Clear retained state from a previous session; wait for a real report.
-        send(sock, wire.publish(prefix .. "/state", "", true))
+        send(sock, wire.publish(state_topic, "", true))
         send(sock, wire.publish(availability, "online", true))
         ctx.connected, ctx.ever_ready = true, true
         next_ping, next_heartbeat = socket.gettime() + 10, socket.gettime()
         ctx.stage = "ready"
-        log.info("ST Local Edge 0.2.1 MQTT ready: " .. p.id)
+        log.info("ST Local Edge 0.3.0 MQTT ready: " .. p.id)
       elseif kind == 3 then
         local topic, payload, id, retained = wire.decode_publish(h, body)
-        local component = wire.command(prefix, topic, payload, retained)
+        local component = wire.command(prefix, topic, payload, retained, p.cover)
         if component and current(ctx) then
           ctx.device:emit_component_event(ctx.device.profile.components[component],
             cap.button.button.pushed({state_change=true}))
@@ -117,7 +125,7 @@ local function run_session(ctx, sock)
     else
       if ctx.pending then
         local value = ctx.pending
-        send(sock, wire.publish(prefix .. "/state", value, true))
+        send(sock, wire.publish(state_topic, value, true))
         if ctx.pending == value then ctx.pending = nil end
       end
       if now >= next_heartbeat then
@@ -156,7 +164,7 @@ local function worker(ctx)
           if reason:find(item, 1, true) then label = item; break end
         end
         local line = reason:match(":(%d+):") or "?"
-        log.warn("ST Local Edge 0.2.1 MQTT failure stage=" .. tostring(ctx.stage) .. " reason=" .. label .. " line=" .. line .. "; retrying")
+        log.warn("ST Local Edge 0.3.0 MQTT failure stage=" .. tostring(ctx.stage) .. " reason=" .. label .. " line=" .. line .. "; retrying")
       end
     end
     ctx.connected = false
@@ -191,10 +199,12 @@ local function start(driver, device)
 end
 
 local function added(driver, device)
-  for _, name in ipairs({"commandOn","commandOff"}) do
+  for _, name in ipairs({"commandOn","commandOff","commandStop"}) do
     local comp = device.profile.components[name]
-    device:emit_component_event(comp, cap.button.supportedButtonValues({"pushed"}))
-    device:emit_component_event(comp, cap.button.numberOfButtons(1))
+    if comp then
+      device:emit_component_event(comp, cap.button.supportedButtonValues({"pushed"}))
+      device:emit_component_event(comp, cap.button.numberOfButtons(1))
+    end
   end
 end
 
@@ -204,10 +214,21 @@ local function report(value)
   return function(_, device, command)
     if command.component ~= "main" then return end
     local ctx = contexts[device.id]
-    if not ctx then return end
+    if not ctx or ctx.config.cover then return end
     ctx.pending = value
     device:emit_event(cap.switch.switch[value]())
   end
+end
+
+local function shade_report(_, device, command)
+  if command.component ~= "shadeReport" then return end
+  local ctx = contexts[device.id]
+  if not ctx or not ctx.config.cover then return end
+  local level = tonumber(command.args.level)
+  local state = wire.shade_state(level)
+  if not state then return end
+  ctx.pending = state
+  device:emit_component_event(device.profile.components.shadeReport, cap.switchLevel.level(level))
 end
 
 local function refresh(driver, device)
@@ -217,7 +238,7 @@ end
 local function info_changed(driver, device, _, args)
   local before = args and args.old_st_store and args.old_st_store.preferences or {}
   local after = device.preferences or {}
-  for _, key in ipairs({"brokerIp","brokerPort","mqttUser","mqttPassword","physicalId","enabled"}) do
+  for _, key in ipairs({"brokerIp","brokerPort","mqttUser","mqttPassword","physicalId","enabled","coverMode"}) do
     if before[key] ~= after[key] then start(driver, device); return end
   end
 end
@@ -227,6 +248,7 @@ local driver = Driver("st-local-edge", {
   lifecycle_handlers = {added=added, init=start, infoChanged=info_changed, removed=function(_,d) stop(d) end},
   capability_handlers = {
     [cap.switch.ID] = {[cap.switch.commands.on.NAME]=report("on"), [cap.switch.commands.off.NAME]=report("off")},
+    [cap.switchLevel.ID] = {[cap.switchLevel.commands.setLevel.NAME]=shade_report},
     [cap.refresh.ID] = {[cap.refresh.commands.refresh.NAME]=refresh}
   }
 })

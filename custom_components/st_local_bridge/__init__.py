@@ -6,7 +6,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 
 def platforms(entry: ConfigEntry) -> list[Platform]:
-    return [Platform.SWITCH if entry.data["kind"] == "switch" else Platform.BINARY_SENSOR]
+    kind = entry.data["kind"]
+    return [Platform.COVER if kind == "cover" else Platform.SWITCH if kind == "switch" else Platform.BINARY_SENSOR]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not await mqtt.async_wait_for_mqtt_client(hass):
