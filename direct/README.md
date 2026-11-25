@@ -23,14 +23,9 @@ Windows에서 Python 3.10+ 및 SmartThings CLI 필요. PyYAML 설치: `py -3 -m 
     py -3 direct/build.py --find _TZ3210_5rta89nj TS0601
     py -3 direct/build.py --list
 
-배포 전 전용 채널 생성 및 허브 가입은 삼성 CLI 계정에서 최초 한 번 수행:
+배포는 한 명령어로 처리합니다. 기존 ST Direct MQTT 채널이 없으면 새로 만들고 허브 가입 후 선택 패키지를 설치합니다. 허브가 여러 개면 선택합니다. 기존 채널을 사용할 경우 -HubId/-ChannelId를 지정할 수 있습니다.
 
-    smartthings edge:channels:create
-    smartthings edge:channels:enroll
-
-생성한 채널 ID, 허브 ID를 지정해 배포:
-
-    powershell -ExecutionPolicy Bypass -File .\direct\deploy.ps1 -Install -HubId YOUR_HUB_UUID -ChannelId YOUR_CHANNEL_UUID
+    powershell -ExecutionPolicy Bypass -File .\direct\deploy.ps1 -Install
 
 다른 패키지는 `-Packages`에 목록을 지정해 추가 빌드/배포. 처음부터 전 패키지를 설치하지 마세요. 기존 Zigbee 기기 또는 원본 채널을 삭제하지 않습니다.
 

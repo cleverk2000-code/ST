@@ -4,6 +4,13 @@ import argparse, hashlib, json, os, re, shutil, sys, tempfile, urllib.request, z
 from pathlib import Path, PurePosixPath
 import yaml
 
+# PyYAML defaults to YAML 1.1: preserve unquoted on/off as strings, as in YAML 1.2.
+class ProfileLoader(yaml.SafeLoader):
+    pass
+ProfileLoader.yaml_implicit_resolvers={k:[(tag,regex) for tag,regex in values if tag!="tag:yaml.org,2002:bool"] for k,values in yaml.SafeLoader.yaml_implicit_resolvers.items()}
+ProfileLoader.add_implicit_resolver("tag:yaml.org,2002:bool",re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"),list("tTfF"))
+def read_yaml(data):return yaml.load(data,Loader=ProfileLoader)
+
 ROOT=Path(__file__).resolve().parent
 UPSTREAM="wonjj6768/smartthings-zigbee-edge-drivers"
 REV="2c97fe1729dc74ee598737a98296ae7c3b902257"
@@ -28,7 +35,7 @@ PREFS=[
     textpref("stMqttSite","MQTT site identifier","home",maxlen=32),
 ]
 def patch_profile(content):
-    obj=yaml.safe_load(content)
+    obj=read_yaml(content)
     if not isinstance(obj,dict) or not isinstance(obj.get("components"),list) or not obj.get("name"):
         raise ValueError("Invalid upstream profile")
     prefs=obj.setdefault("preferences",[])
@@ -83,7 +90,7 @@ def build(z,packages,out):
                 copied.add(rel)
                 target=dest.joinpath(*rel.parts);target.parent.mkdir(parents=True,exist_ok=True)
                 target.write_bytes(z.read(info))
-            conf=dest/"config.yml";cfg=yaml.safe_load(conf.read_text(encoding="utf-8"))
+            conf=dest/"config.yml";cfg=read_yaml(conf.read_text(encoding="utf-8"))
             if cfg.get("packageKey")!=name or "zigbee" not in cfg.get("permissions",{}):raise ValueError("Unexpected upstream config")
             family=name.removesuffix("-wonjj6768")
             cfg["packageKey"]="cleverk2000.st-direct."+family
@@ -92,8 +99,8 @@ def build(z,packages,out):
             cfg["vendorSupportInformation"]="https://github.com/cleverk2000-code/ST"
             cfg["permissions"]["lan"]={}
             conf.write_text(yaml.safe_dump(cfg,sort_keys=False,allow_unicode=True),encoding="utf-8")
-            fingerprints=yaml.safe_load((dest/"fingerprints.yml").read_text(encoding="utf-8"))
-            profiles={yaml.safe_load(p.read_text(encoding="utf-8"))["name"] for p in (dest/"profiles").glob("*.y*ml")}
+            fingerprints=read_yaml((dest/"fingerprints.yml").read_text(encoding="utf-8"))
+            profiles={read_yaml(p.read_text(encoding="utf-8"))["name"] for p in (dest/"profiles").glob("*.y*ml")}
             for value in fingerprints.values():
                 if isinstance(value,list):
                     for fp in value:
@@ -120,7 +127,7 @@ def main():
             print("\n".join(sorted(found)));return
         if args.find:
             for name,root in sorted(found.items()):
-                fp=yaml.safe_load(z.read(f"{root}/deploy/{name}/fingerprints.yml"))
+                fp=read_yaml(z.read(f"{root}/deploy/{name}/fingerprints.yml"))
                 for x in fp.get("zigbeeManufacturer",[]):
                     if (str(x.get("manufacturer")),str(x.get("model")))==tuple(args.find):print(name,x["deviceProfileName"])
             return

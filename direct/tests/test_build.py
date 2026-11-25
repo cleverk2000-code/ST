@@ -12,6 +12,10 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(new["preferences"][0],old["preferences"][0])
         self.assertEqual(len(new["preferences"]),8)
         self.assertFalse(next(x for x in new["preferences"] if x.get("name")=="stMqttMaster")["definition"]["default"])
+    def test_yaml_enums(self):
+        source="{name: p,components: [],deviceConfig: {x: on, y: off, z: true}}"
+        new=b.read_yaml(b.patch_profile(source))
+        self.assertEqual(new["deviceConfig"],{"x":"on","y":"off","z":True})
     def test_duplicate(self):
         with self.assertRaises(ValueError):b.patch_profile("{name: p,components: [],preferences:[{name: stMqttMaster}]}")
     def test_patch(self):

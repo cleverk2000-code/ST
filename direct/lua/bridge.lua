@@ -61,18 +61,28 @@ local function remove_topics(c,topics)
 end
 local function register(s,c,d,rec)
  if not current(s,c) then return end
+ if rec.prefix~=c.prefix then rec.entities={};rec.colors={};rec.prefix=c.prefix end
+ local old=d:get_field("st_direct_discovery")
+ if type(old)=="table" and old.prefix==c.prefix and type(old.topics)=="table" then
+  for _,t in ipairs(old.topics) do
+   if type(t)=="string" and t:match("^homeassistant/[%w_]+/std_") then rec.previous=rec.previous or {};rec.previous[t]=true end
+  end
+ end
  if not exported(d) then
   put(c,c.prefix.."/"..d.id.."/available","offline")
-  remove_topics(c,rec.entities);rec.entities={};return
+  remove_topics(c,rec.entities);remove_topics(c,rec.previous);rec.entities={};rec.previous=nil;d:set_field("st_direct_discovery",{prefix=c.prefix,topics={}},{persist=true});return
  end
  local next_entities=describe(s,c,d,rec)
  for t in pairs(rec.entities or {}) do if not next_entities[t] then put(c,t,"") end end
- rec.entities=next_entities
+ for t in pairs(rec.previous or {}) do if not next_entities[t] then put(c,t,"") end end
+ rec.previous=nil;rec.entities=next_entities
  for t,e in pairs(next_entities) do
   if s.tombstones[c.prefix] then s.tombstones[c.prefix][t]=nil end
   put(c,t,json.encode(e.config))
  end
- put(c,c.prefix.."/"..d.id.."/available","online")
+ local topics={};for t in pairs(next_entities) do topics[#topics+1]=t end;table.sort(topics)
+ local prior=d:get_field("st_direct_discovery")
+ if type(prior)~="table" or prior.prefix~=c.prefix or table.concat(prior.topics or {},"|")~=table.concat(topics,"|") then d:set_field("st_direct_discovery",{prefix=c.prefix,topics=topics},{persist=true}) end
 end
 local function update_state(s,c,d,rec,component,cap,attr,value,unit)
  if not current(s,c) or not exported(d) or s.devices[d.id]~=rec then return end
@@ -108,17 +118,19 @@ local function snapshot(s,c,d,rec)
  end
 end
 local function refresh(s,c,d,rec,rebuild)
- if not current(s,c) or rec.snapshot_pending==c then return end
- rec.snapshot_pending=c
+ if not current(s,c) or rec.snapshot_pending==c.epoch then return end
+ local epoch=c.epoch
+ rec.snapshot_pending=epoch
  local ok=pcall(function() d.thread:queue_event(function()
-  if rec.snapshot_pending==c then rec.snapshot_pending=nil end
-  if not current(s,c) or s.devices[d.id]~=rec then return end
+  if rec.snapshot_pending==epoch then rec.snapshot_pending=nil end
+  if not current(s,c) or c.epoch~=epoch or s.devices[d.id]~=rec then return end
   protected(function()
    if rebuild then register(s,c,d,rec) end
    snapshot(s,c,d,rec)
+   if exported(d) and next(rec.entities) then put(c,c.prefix.."/"..d.id.."/available","online") end
   end)
  end) end)
- if not ok and rec.snapshot_pending==c then rec.snapshot_pending=nil end
+ if not ok and rec.snapshot_pending==epoch then rec.snapshot_pending=nil end
 end
 local function hook_device(s,d,rec)
  -- Hook only this device instance; preserve original results/errors. Nested emit_event -> emit_component_event is counted once.
@@ -166,9 +178,9 @@ local function incoming(s,c,t,payload,retained)
  local supported=false
  for _,e in pairs(rec.entities or {}) do if e.component==component and e.commands[field] then supported=true;break end end
  if not supported then return end
- local expires=socket.gettime()+2
+ local expires=socket.gettime()+2;local epoch=c.epoch
  d.thread:queue_event(function()
-  if socket.gettime()>expires or not current(s,c) or s.devices[id]~=rec or not exported(d) then return end
+  if socket.gettime()>expires or not current(s,c) or c.epoch~=epoch or s.devices[id]~=rec or not exported(d) then return end
   protected(function()
    local comp=d.profile.components[component]
    if not comp then return end
@@ -188,11 +200,17 @@ local function incoming(s,c,t,payload,retained)
 end
 local function send_pending(c,sock)
  local n=0
- for t,m in pairs(c.pending) do
-  if n>=24 then break end
-  transport.send(sock,wire.publish(t,m.value,m.retain))
-  if c.pending[t]==m then c.pending[t]=nil end
-  n=n+1
+ -- Publish discovery and state before per-device online. Offline flags are highest priority.
+ for priority=1,3 do
+  for t,m in pairs(c.pending) do
+   local is_avail=t:sub(-10)=="/available"
+   local p=is_avail and (m.value=="offline" and 1 or 3) or 2
+   if p==priority and n<24 then
+    transport.send(sock,wire.publish(t,m.value,m.retain))
+    if c.pending[t]==m then c.pending[t]=nil end
+    n=n+1
+   end
+  end
  end
  for _=1,math.min(#c.events,16) do
   local ev=table.remove(c.events,1);transport.send(sock,wire.publish(ev.topic,ev.value,false))
@@ -257,7 +275,7 @@ end
 local function run(s,c)
  local delay=1
  while not c.cancel and not c.stopping do
-  c.ready=false;c.was_ready=false;c.pending={};c.events={}
+  c.ready=false;c.was_ready=false;c.pending={};c.events={};c.epoch={}
   local sock=socket.tcp()
   if sock then
    local ok=pcall(run_session,s,c,sock)
@@ -317,7 +335,9 @@ local function removed(s,d)
  local c=s.session
  if c then
   local tomb=s.tombstones[c.prefix] or {};s.tombstones[c.prefix]=tomb
-  for t in pairs(rec.entities) do tomb[t]=true;put(c,t,"") end
+  if rec.prefix==c.prefix then for t in pairs(rec.entities) do tomb[t]=true;put(c,t,"") end end
+  local old=d:get_field("st_direct_discovery")
+  if type(old)=="table" and old.prefix==c.prefix then for _,t in ipairs(old.topics or {}) do if type(t)=="string" and t:match("^homeassistant/[%w_]+/std_") then tomb[t]=true;put(c,t,"") end end end
   put(c,c.prefix.."/"..d.id.."/available","offline")
   for i=#c.events,1,-1 do if c.events[i].id==d.id then table.remove(c.events,i) end end
  end

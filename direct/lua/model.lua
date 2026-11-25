@@ -83,7 +83,7 @@ function M.state(field,value,unit)
  if field=="switch" then return ({on="ON",off="OFF"})[value] end
  if field=="shade" then return ({closed="closed",open="open",opening="opening",closing="closing",["partially open"]="open",paused="stopped"})[value] end
  if field=="position" or field=="brightness" then local v=M.num(value,0,100);return v and tostring(math.floor(v+0.5)) or nil end
- if field=="color_temp" then local v=M.num(value,2000,6500);return v and tostring(math.floor(v+0.5)) or nil end
+ if field=="color_temp" then local v=M.num(value,1000,20000);return v and tostring(math.floor(v+0.5)) or nil end
  if field=="button" and button_set[value] then return value end
 end
 function M.describe(prefix,id,component,label,manufacturer,model,caps,handlers,hook,category)
@@ -98,7 +98,7 @@ function M.describe(prefix,id,component,label,manufacturer,model,caps,handlers,h
   config.device=device
   config.availability={{topic=prefix.."/availability"},{topic=prefix.."/"..id.."/available"}}
   config.availability_mode="all"
-  config.qos=0
+  config.qos=1
   local topic="homeassistant/"..platform.."/"..config.unique_id.."/config"
   entities[field]={topic=topic,config=config,reads=reads or {},commands=commands or {},base=base}
  end
