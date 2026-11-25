@@ -50,11 +50,24 @@ local function describe(s,c,d,rec)
   local id=comp.id or key
   if model.safe_token(id) then
    local caps=caps_of(comp)
-   local entities=model.describe(c.prefix,d.id,id,d.label or d.name or d.id,d:get_manufacturer(),d:get_model(),caps,s.handlers,rec.hook,category(comp))
+   local entities=model.describe(c.prefix,d.id,id,d.label or d.name or d.id,d:get_manufacturer(),d:get_model(),caps,s.handlers,rec.hook,category(comp) or (s.family:find("lights",1,true) and "Light" or s.family:find("plugs",1,true) and "SmartPlug" or nil))
+   if entities.shade then
+    local allowed=d:get_latest_state(id,"windowShade","supportedWindowShadeCommands")
+    if type(allowed)=="table" and #allowed>0 then
+     local pause=false;for _,v in ipairs(allowed) do if v=="pause" then pause=true end end
+     if not pause then entities.shade.config.payload_stop="" end
+    end
+   end
    for _,e in pairs(entities) do out[e.topic]=e;e.component=id;e.caps=caps end
   end
  end
  return out
+end
+local function owned_topic(c,d,t)
+ local token="std_"..c.prefix:gsub("/","_").."_"..d.id.."_"
+ if type(t)~="string" then return false end
+ local id=t:match("^homeassistant/[%w_]+/([^/]+)/config$")
+ return id~=nil and id:sub(1,#token)==token
 end
 local function remove_topics(c,topics)
  for topic,_ in pairs(topics or {}) do put(c,topic,"",true) end
@@ -65,7 +78,7 @@ local function register(s,c,d,rec)
  local old=d:get_field("st_direct_discovery")
  if type(old)=="table" and old.prefix==c.prefix and type(old.topics)=="table" then
   for _,t in ipairs(old.topics) do
-   if type(t)=="string" and t:match("^homeassistant/[%w_]+/std_") then rec.previous=rec.previous or {};rec.previous[t]=true end
+   if owned_topic(c,d,t) then rec.previous=rec.previous or {};rec.previous[t]=true end
   end
  end
  if not exported(d) then
@@ -118,14 +131,16 @@ local function snapshot(s,c,d,rec)
  end
 end
 local function refresh(s,c,d,rec,rebuild)
- if not current(s,c) or rec.snapshot_pending==c.epoch then return end
+ if not current(s,c) then return end
+ if rebuild then rec.rebuild_epoch=c.epoch end
+ if rec.snapshot_pending==c.epoch then return end
  local epoch=c.epoch
  rec.snapshot_pending=epoch
  local ok=pcall(function() d.thread:queue_event(function()
   if rec.snapshot_pending==epoch then rec.snapshot_pending=nil end
   if not current(s,c) or c.epoch~=epoch or s.devices[d.id]~=rec then return end
   protected(function()
-   if rebuild then register(s,c,d,rec) end
+   if rec.rebuild_epoch==epoch then rec.rebuild_epoch=nil;register(s,c,d,rec) end
    snapshot(s,c,d,rec)
    if exported(d) and next(rec.entities) then put(c,c.prefix.."/"..d.id.."/available","online") end
   end)
@@ -252,8 +267,18 @@ local function run_session(s,c,sock)
     log.info("ST Direct MQTT connected")
    elseif math.floor(h/16)==3 then
     local t,v,id,retained=wire.decode_publish(h,b)
-    if id then transport.send(sock,wire.puback(id)) end
-    protected(incoming,s,c,t,v,retained)
+    local duplicate=false
+    if id then
+     local previous=c.received[id]
+     duplicate=math.floor(h/8)%2==1 and previous and previous.topic==t and previous.payload==v
+     if not duplicate then
+      c.received[id]={topic=t,payload=v}
+      c.received_order[#c.received_order+1]={id=id,value=c.received[id]}
+      if #c.received_order>128 then local old=table.remove(c.received_order,1);if c.received[old.id]==old.value then c.received[old.id]=nil end end
+     end
+     transport.send(sock,wire.puback(id))
+    end
+    if not duplicate then protected(incoming,s,c,t,v,retained) end
    elseif h==0xD0 and #b==0 then pong=nil
    else error("unexpected packet") end
   end
@@ -275,7 +300,7 @@ end
 local function run(s,c)
  local delay=1
  while not c.cancel and not c.stopping do
-  c.ready=false;c.was_ready=false;c.pending={};c.events={};c.epoch={}
+  c.ready=false;c.was_ready=false;c.pending={};c.events={};c.epoch={};c.received={};c.received_order={}
   local sock=socket.tcp()
   if sock then
    local ok=pcall(run_session,s,c,sock)
@@ -337,7 +362,7 @@ local function removed(s,d)
   local tomb=s.tombstones[c.prefix] or {};s.tombstones[c.prefix]=tomb
   if rec.prefix==c.prefix then for t in pairs(rec.entities) do tomb[t]=true;put(c,t,"") end end
   local old=d:get_field("st_direct_discovery")
-  if type(old)=="table" and old.prefix==c.prefix then for _,t in ipairs(old.topics or {}) do if type(t)=="string" and t:match("^homeassistant/[%w_]+/std_") then tomb[t]=true;put(c,t,"") end end end
+  if type(old)=="table" and old.prefix==c.prefix then for _,t in ipairs(old.topics or {}) do if owned_topic(c,d,t) then tomb[t]=true;put(c,t,"") end end end
   put(c,c.prefix.."/"..d.id.."/available","offline")
   for i=#c.events,1,-1 do if c.events[i].id==d.id then table.remove(c.events,i) end end
  end

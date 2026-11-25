@@ -18,6 +18,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: find direct/lua -name '*.lua' -exec luac5.3 -p {} \;
       - run: lua5.3 direct/tests/test_model.lua
+      - run: lua5.3 direct/tests/test_runtime.lua
       - run: python direct/build.py --out /tmp/st-direct-build
       - run: find /tmp/st-direct-build -name '*.lua' -exec luac5.3 -p {} \;
       - run: python direct/build.py --find _TZ3210_5rta89nj TS0601
