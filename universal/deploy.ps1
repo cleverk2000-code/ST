@@ -68,9 +68,9 @@ if ($ChannelId -eq [guid]::Empty){
  if ($mine.Count -gt 1){throw 'Duplicate ST Universal MQTT channels. Specify -ChannelId.'}
  if ($mine.Count -eq 1){$channel=$mine[0]}
  else {
-  $tmp=[IO.Path]::GetTempFileName()
+  $tmp=Join-Path ([IO.Path]::GetTempPath()) ('st-channel-'+[guid]::NewGuid().ToString()+'.json')
   try{
-   $payload=@{name='ST Universal MQTT';description='Dedicated universal Zigbee MQTT channel';termsOfServiceUrl='https://github.com/cleverk2000-code/ST'}
+   $payload=@{name='ST Universal MQTT';description='Dedicated universal Zigbee MQTT channel';termsOfServiceUrl='https://github.com/cleverk2000-code/ST';type='DRIVER'}
    [IO.File]::WriteAllText($tmp,($payload | ConvertTo-Json),[Text.UTF8Encoding]::new($false))
    $channel=Read-ST @('edge:channels:create','-i',$tmp)
   }finally{Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue}
