@@ -62,11 +62,11 @@ def compact_yaml(data):
     except (TypeError,ValueError):pass
     options.append(yaml.safe_dump(obj,allow_unicode=True,sort_keys=False,default_flow_style=True,width=1000000).encode("utf-8"))
     options.append(yaml.safe_dump(obj,allow_unicode=True,sort_keys=False,default_flow_style=None,width=1000000).encode("utf-8"))
-    if isinstance(obj,dict):
-        options.append("".join(yaml.safe_dump({k:v},allow_unicode=True,sort_keys=False,default_flow_style=None,width=1000000) for k,v in obj.items()).encode("utf-8"))
     valid=[]
     for candidate in options:
-        if read_yaml(candidate.decode("utf-8-sig"))==obj:valid.append(candidate)
+        try:
+            if read_yaml(candidate.decode("utf-8-sig"))==obj:valid.append(candidate)
+        except yaml.YAMLError:pass
     return min(valid,key=len)
 def optimize_package(pkg,force=False):
     before=package_bytes(pkg)
