@@ -3,7 +3,7 @@ param(
  [Parameter(Mandatory=$true)][string]$Build,
  [Parameter(Mandatory=$true)][guid]$ChannelId,
  [Parameter(Mandatory=$true)][guid]$HubId,
- [string]$Family
+ [Alias('Family')][string]$TargetFamily
 )
 $ErrorActionPreference='Stop'
 $root=(Resolve-Path -LiteralPath $Build).Path
@@ -25,9 +25,9 @@ foreach($entry in $decoded){
  $families+= $family
 }
 if($families.Count -eq 0){throw 'Missing manifest'}
-if($Family){
- if($families -notcontains $Family){throw 'Family not in manifest'}
- $families=@($Family)
+if($TargetFamily){
+ if($families -notcontains $TargetFamily){throw 'Family not in manifest'}
+ $families=@($TargetFamily)
 }
 $zipDir=Join-Path $root ('cli-preflight-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $zipDir -Force | Out-Null

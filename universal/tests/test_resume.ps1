@@ -35,6 +35,9 @@ try {
   & ./universal/resume_install.ps1 -Build $fixture -ChannelId $channel -HubId $hub
   if($global:uploads -ne $n){throw "Expected $n uploads"}
  }
+ $global:expected=1;$global:preflight=0;$global:uploads=0
+ & ./universal/resume_install.ps1 -Build (Join-Path $root 'fixture-7') -ChannelId $channel -HubId $hub -Family zcl-sensors
+ if($global:uploads -ne 1){throw 'Single-family resume failed'}
  $global:expected=7;$global:preflight=0;$global:uploads=0;$global:failAt=2
  $failed=$false
  try {& ./universal/resume_install.ps1 -Build (Join-Path $root 'fixture-7') -ChannelId $channel -HubId $hub}
