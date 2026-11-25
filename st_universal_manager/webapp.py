@@ -1,8 +1,11 @@
 import os,secrets,threading,time
-from flask import Flask,request,render_template_string,abort
+from flask import Flask,request,render_template_string,abort,session
 import manager as m
 app=Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"]=32768
+app.secret_key=secrets.token_bytes(32)
+app.config.update(SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE="Strict")
+auth_cache={}
 csrf=secrets.token_urlsafe(32)
 lock=threading.Lock()
 state={"busy":False,"lines":["Ready"],"ok":None,"hub":"","channel":""}
@@ -14,7 +17,7 @@ PAGE="""<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewpor
 {% if busy %}<p>작업 중 · <a href="./">로그 새로고침</a></p>{% else %}
 <form method="post" action="./"><input type="hidden" name="csrf" value="{{csrf}}">
 <fieldset><legend>삼성 인증 (작업 중에만 사용)</legend>
-<label>임시 PAT <input name="token" type="password" autocomplete="off" required></label>
+<label>임시 PAT <input name="token" type="password" autocomplete="off" placeholder="{{token_hint}}"></label>
 <p><a href="https://account.smartthings.com/tokens" target="_blank" rel="noopener noreferrer">스마트폰에서 PAT 발급</a></p>
 <label>허브 ID <input name="hub" value="{{hub}}" required></label>
 <label>채널 ID <input name="channel" value="{{channel}}" required></label></fieldset>
@@ -30,7 +33,7 @@ PAGE="""<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewpor
 <label><input type="checkbox" name="save"> 공통 MQTT 설정을 애드온 /data에 저장 (백업에 포함될 수 있음)</label>
 <label><input type="checkbox" name="consent"> 자격 증명이 삼성 서버에 업로드되는 패키지에 포함됨을 이해했습니다. 전용 MQTT 계정을 사용합니다.</label>
 <small>기존 토픽을 유지하려면 기존 site 값(home)을 유지하세요. 내장 옵션을 끄면 기존 Master 설정을 유지합니다.</small></fieldset>
-<button name="action" value="inventory">기존 드라이버 확인</button>
+<button name="action" value="forget">임시 PAT 지우기</button><button name="action" value="inventory">기존 드라이버 확인</button>
 <button name="action" value="dry">빌드 및 사전 검증</button>
 <label><input type="checkbox" name="confirm"> 선택 드라이버 업로드 및 업데이트 승인</label>
 <button name="action" value="apply">업데이트 실행</button></form>{% endif %}
@@ -58,10 +61,14 @@ def worker(token,hub,channel,families,cfg,action,allow_new):
     finally:
         with lock:state["busy"]=False
 def page():
+    sid=session.setdefault("sid",secrets.token_urlsafe(24))
     try:cfg=m.read_config() or {}
     except Exception:cfg={}
-    with lock:busy=state["busy"];lines="\n".join(state["lines"])
-    return render_template_string(PAGE,csrf=csrf,busy=busy,hub=state["hub"],channel=state["channel"],families=m.FAMILIES,host=cfg.get("host","192.168.0.19"),port=cfg.get("port",1883),user=cfg.get("user",""),site=cfg.get("site","home"),placeholder="저장된 암호 사용" if cfg else "MQTT 비밀번호",log=lines)
+    with lock:
+        busy=state["busy"];lines="\n".join(state["lines"])
+        entry=auth_cache.get(sid)
+        hint="메모리의 임시 PAT 재사용 가능" if entry and entry[1]>time.monotonic() else "24시간 임시 PAT 입력"
+    return render_template_string(PAGE,csrf=csrf,busy=busy,hub=state["hub"],channel=state["channel"],families=m.FAMILIES,host=cfg.get("host","192.168.0.19"),port=cfg.get("port",1883),user=cfg.get("user",""),site=cfg.get("site","home"),placeholder="저장된 암호 사용" if cfg else "MQTT 비밀번호",log=lines,token_hint=hint)
 @app.before_request
 def ingress_only():
     if request.remote_addr not in ("172.30.32.2","127.0.0.1","::1") and os.getenv("ST_TEST")!="1":abort(403)
@@ -75,9 +82,17 @@ def index():
     if not secrets.compare_digest(f.get("csrf",""),csrf):abort(403)
     try:
         action=f["action"]
+        sid=session.setdefault("sid",secrets.token_urlsafe(24))
+        if action=="forget":
+            with lock:auth_cache.pop(sid,None)
+            return page()
         if action not in ("inventory","dry","apply"):raise ValueError("Invalid action")
         if action=="apply" and not f.get("confirm"):raise ValueError("Update confirmation required")
-        hub=m.uuid_text(f["hub"]);channel=m.uuid_text(f["channel"]);token=f["token"]
+        hub=m.uuid_text(f["hub"]);channel=m.uuid_text(f["channel"]);token=f.get("token","").strip()
+        if not token:
+            with lock:entry=auth_cache.get(sid)
+            if entry and entry[1]>time.monotonic():token=entry[0]
+        supplied=bool(f.get("token","").strip())
         if not m.token_valid(token):raise ValueError("Invalid PAT")
         families=f.getlist("family")
         if not families or any(x not in m.FAMILIES for x in families):raise ValueError("Choose supported packages")
@@ -89,6 +104,11 @@ def index():
             cfg=m.mqtt_config(f["host"],f["port"],f["user"],password,f["site"])
         with lock:
             if state["busy"]:return "Another job is active",409
+            if supplied:
+                for k in list(auth_cache):
+                    if auth_cache[k][1]<=time.monotonic():auth_cache.pop(k,None)
+                if len(auth_cache)>=8:auth_cache.pop(next(iter(auth_cache)))
+                auth_cache[sid]=(token,time.monotonic()+23*3600)
             if cfg and f.get("save"):m.save_config(cfg)
             state.update(busy=True,lines=["Job started: "+action],ok=None,hub=hub,channel=channel)
         threading.Thread(target=worker,args=(token,hub,channel,families,cfg,action,bool(f.get("allow_new"))),daemon=True).start()
