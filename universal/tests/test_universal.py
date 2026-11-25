@@ -25,3 +25,12 @@ class UniversalTest(unittest.TestCase):
   devices=[{"type":"ZIGBEE","deviceId":"a","zigbee":{"driverId":"a"}},{"type":"ZIGBEE","deviceId":"b","zigbee":{"driverId":"b"}}]
   drivers=[{"driverId":"a","name":"EF00 Valves wonjj6768"},{"driverId":"b","name":"Unreviewed driver"}]
   self.assertEqual([x["method"] for x in i.plan(devices,drivers)],["rules_or_review","rules_or_review"])
+
+ def test_empty_cli_inventory(self):
+  for x in (None,[],[None],{"items":None},{"items":[None]},[None,"bad",3]):
+   self.assertEqual(i.items(x),[])
+   self.assertEqual(i.plan(x,x),[])
+  dev={"type":"ZIGBEE","deviceId":"a","zigbee":{"driverId":"x"}}
+  self.assertEqual(i.plan([None,dev],[None])[0]["method"],"rules_or_review")
+  self.assertEqual(i.plan({"items":[None,dev]},{"items":[None,{"driverId":"x","name":"Zigbee Switch"}]})[0]["package"],"zigbee-switch")
+  self.assertEqual(i.plan(dev,{"driverId":"x","name":"Zigbee Switch"})[0]["method"],"official")

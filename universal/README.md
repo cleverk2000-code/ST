@@ -40,3 +40,5 @@ inventory는 CLI의 현재 기기 및 설치 드라이버 정보를 읽어 분�
     py -3 universal/register.py --repo OWNER/REPO --package path/to/driver --approve
 
 검색 결과는 후보일 뿐 동일 드라이버임을 보장하지 않습니다. --approve 전 원본 코드/라이선스를 검토하세요. 등록 정보는 custom.local.json에 로컬 저장됩니다. deploy.ps1은 이 파일을 자동 읽고 현재 설치 드라이버 이름과 일치하는 검토된 소스만 변환합니다. 설치는 별도 -Install 승인 후 진행됩니다. 공개 소스가 갱신됐는지 확인: `py -3 universal/register.py --check-updates`. 새 리비전은 검토 후 명시적으로 다시 등록해야 하며 자동 병합·자동 업로드하지 않습니다.
+
+초기화 직후 설치 드라이버 목록이 비어 있거나 null이면 기본 5개 패키지로 부트스트랩합니다. `-Bootstrap`은 인식된 패키지에 기본 5개를 추가합니다. 드라이버 설치 목록을 확인한 후 승인해야 업로드합니다. CLI `--hub`는 설치를 내포하므로 `--install`과 함께 사용하지 않습니다.

@@ -105,6 +105,7 @@ def main():
     p.add_argument("--official",nargs="*",default=["zigbee-switch","zigbee-motion-sensor","zigbee-window-treatment"])
     p.add_argument("--wonjj",nargs="*",default=["ef00-covers-2-wonjj6768","zcl-plugs-wonjj6768"])
     p.add_argument("--all-official",action="store_true")
+    p.add_argument("--bootstrap",action="store_true",help="Include known baseline families even with empty inventory")
     p.add_argument("--plan",type=Path,help="Read-only inventory plan; select known package families")
     p.add_argument("--custom",type=Path,help="Reviewed JSON list: repo,revision,package,family,license,entry_blob")
     p.add_argument("--official-archive",type=Path)
@@ -120,7 +121,10 @@ def main():
         args.wonjj=sorted({r["package"] for r in plan if r["method"]=="wonjj" and direct.ALLOWED.fullmatch(r["package"] or "")})
         selected={r["package"] for r in plan if r["method"]=="custom"}
         custom=[c for c in custom if c["family"] in selected]
-        if not (official or args.wonjj or custom):p.error("No supported unconverted devices in plan")
+        if args.bootstrap:
+            official=sorted(set(official)|{"zigbee-switch","zigbee-motion-sensor","zigbee-window-treatment"})
+            args.wonjj=sorted(set(args.wonjj)|set(direct.DEFAULT))
+        if not (official or args.wonjj or custom):p.error("No supported unconverted devices in plan; use --bootstrap to include baseline packages")
         print("Selected:",official,args.wonjj,[c["family"] for c in custom])
     out=args.out.resolve()
     if out.exists():p.error("Output must not exist")

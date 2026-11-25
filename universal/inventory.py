@@ -4,9 +4,16 @@ import argparse,json,re,subprocess
 from pathlib import Path
 WONJJ=re.compile(r"^(?:ef00-(?:covers|switch|lights|energy|meters|sensors|presence|pir-motion)|zcl-(?:plugs|switch|lights|covers|sensors|controls))(?:[a-z0-9-]*)-wonjj6768$")
 CAT=json.loads((Path(__file__).parent/"catalog.json").read_text())
-def items(x):return x if isinstance(x,list) else x.get("items",[])
+def items(x):
+    """Normalize CLI empty, single-object and wrapped list outputs, including [null]."""
+    if isinstance(x,dict):
+        if "items" in x:return items(x["items"])
+        return [x]
+    if isinstance(x,list):return [v for v in x if isinstance(v,dict)]
+    return []
 def normal(s):return re.sub(r"[^a-z0-9]+","-",str(s or "").lower()).strip("-")
 def plan(devices,drivers,custom=()):
+    devices,drivers,custom=items(devices),items(drivers),items(list(custom) if isinstance(custom,tuple) else custom)
     known={normal(k):("official",k) for k in CAT["official"]["packages"]}
     for c in custom:
         if c.get("installed_name"):known[normal(c["installed_name"])]=("custom",c["family"])
@@ -14,7 +21,7 @@ def plan(devices,drivers,custom=()):
     result=[]
     for d in devices:
         if d.get("type")!="ZIGBEE":continue
-        z=d.get("zigbee") or {};driver=indexed.get(z.get("driverId") or d.get("driverId"),{})
+        z=d.get("zigbee");z=z if isinstance(z,dict) else {};driver=indexed.get(z.get("driverId") or d.get("driverId"),{})
         name=driver.get("name") or driver.get("driverName") or z.get("driverName") or ""
         key=normal(name);found=known.get(key)
         if key.startswith("st-mqtt-"):method,package="already_mqtt",None
@@ -36,7 +43,7 @@ def main():
     elif not a.devices and not a.drivers:
         ds=cli("devices");dr=cli("edge:drivers:installed",*(["-H",a.hub] if a.hub else []))
     else:p.error("Provide both saved JSON files or neither")
-    if a.hub:ds=[d for d in ds if (d.get("zigbee") or {}).get("hubId")==a.hub or d.get("parentDeviceId")==a.hub]
+    if a.hub:ds=[d for d in ds if (isinstance(d.get("zigbee"),dict) and d["zigbee"].get("hubId")==a.hub) or d.get("parentDeviceId")==a.hub]
     result=plan(ds,dr,json.loads(a.custom.read_text()) if a.custom else [])
     data=json.dumps(result,ensure_ascii=False,indent=2)
     if a.out:a.out.write_text(data,encoding="utf-8")
