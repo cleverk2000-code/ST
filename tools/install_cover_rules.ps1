@@ -7,19 +7,28 @@ param(
     [switch]$Apply
 )
 $ErrorActionPreference = 'Stop'
+# Node/SmartThings emits UTF-8; Windows PowerShell 5.1 otherwise uses the OEM code page.
+$utf8 = [System.Text.UTF8Encoding]::new($false)
+[Console]::OutputEncoding = $utf8
+$OutputEncoding = $utf8
+Write-Host 'ST Cover Rules installer 0.3.1 (UTF-8)'
 if ($Physical -eq $Proxy) { throw 'Physical and proxy IDs must differ.' }
 function Invoke-STJson {
     param([string[]]$Arguments)
     $output = & smartthings @Arguments -j
     if ($LASTEXITCODE -ne 0) { throw "SmartThings CLI failed: $($Arguments[0])" }
-    return ($output -join "`n" | ConvertFrom-Json)
+    $raw = ($output -join "`n").TrimStart([char]0xFEFF)
+    try { return ($raw | ConvertFrom-Json -ErrorAction Stop) }
+    catch { throw "Invalid JSON from SmartThings CLI ($($Arguments[0])). Check UTF-8 output; no JSON repair attempted." }
 }
 $physicalDevice = Invoke-STJson -Arguments @('devices',"$Physical")
 $proxyDevice = Invoke-STJson -Arguments @('devices',"$Proxy")
 if ($physicalDevice.locationId -ne "$Location" -or $proxyDevice.locationId -ne "$Location") { throw 'Device location mismatch.' }
 $main = $physicalDevice.components | Where-Object { $_.id -eq 'main' }
 if ('windowShade' -notin @($main.capabilities.id)) { throw 'Physical device lacks windowShade.' }
-if ($physicalDevice.parentDeviceId -ne $proxyDevice.parentDeviceId -or -not $physicalDevice.parentDeviceId) { throw 'Devices must share the same hub.' }
+$physicalHub = if ($physicalDevice.zigbee.hubId) { $physicalDevice.zigbee.hubId } else { $physicalDevice.parentDeviceId }
+$proxyHub = if ($proxyDevice.lan.hubId) { $proxyDevice.lan.hubId } else { $proxyDevice.parentDeviceId }
+if (-not $physicalHub -or -not $proxyHub -or $physicalHub -ne $proxyHub) { throw 'Devices must share the same hub; verify device details.' }
 foreach ($c in @('commandOn','commandOff','commandStop','shadeReport')) {
     if ($c -notin @($proxyDevice.components.id)) { throw "Proxy missing component $c. Create a new bridge-v3 proxy." }
 }
@@ -43,8 +52,11 @@ foreach ($command in $commands.Keys) {
     $rules += New-Rule -Name "$prefix command $command" -From $Proxy -Component $commands[$command] -Capability 'button' -Attribute 'button' -Value 'pushed' -To $Physical -TargetComponent 'main' -TargetCapability 'windowShade' -Command $command
 }
 if (-not $Apply) {
-    $rules | ConvertTo-Json -Depth 20
-    Write-Host 'Dry run only. Add -Apply to create rules.'
+    Write-Host "Physical device: $($physicalDevice.label) ($Physical)"
+    Write-Host "Proxy: $($proxyDevice.label) ($Proxy)"
+    Write-Host "Hub: $physicalHub"
+    $rules | ForEach-Object { Write-Host $_.name }
+    Write-Host "Dry run passed: $($rules.Count) rules; nothing created. Add -Apply only after review."
     return
 }
 $existing=Invoke-STJson -Arguments @('rules','-l',"$Location")
