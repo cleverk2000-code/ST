@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SmartThings 로컬 기기 추가",
+        "description": "SmartThings Advanced에서 실제 기기 UUID를 확인하세요. 먼저 Edge 및 Rules를 구성해야 합니다.",
+        "data": {
+          "name": "기기 이름",
+          "device_id": "실제 기기 UUID",
+          "kind": "기기 종류"
+        }
+      }
+    },
+    "error": {
+      "invalid_uuid": "올바른 UUID를 입력하세요.",
+      "invalid_name": "기기 이름을 입력하세요."
+    },
+    "abort": {
+      "already_configured": "이미 등록한 기기입니다."
+    }
+  }
+}

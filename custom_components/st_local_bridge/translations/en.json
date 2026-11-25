@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add SmartThings local device",
+        "description": "Enter the physical device UUID from SmartThings Advanced. Configure Edge and Rules first.",
+        "data": {
+          "name": "Device name",
+          "device_id": "Physical device UUID",
+          "kind": "Device type"
+        }
+      }
+    },
+    "error": {
+      "invalid_uuid": "Enter a valid UUID.",
+      "invalid_name": "Enter a name."
+    },
+    "abort": {
+      "already_configured": "This device is already configured."
+    }
+  }
+}
