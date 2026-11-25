@@ -1,0 +1,11 @@
+[
+  {
+    "repo": "OWNER/REPOSITORY",
+    "revision": "FULL_40_HEX_COMMIT",
+    "package": "path/to/driver",
+    "family": "custom-example",
+    "license": "MIT",
+    "entry_blob": "REVIEWED_40_HEX_GIT_BLOB",
+    "installed_name": "Original driver name"
+  }
+]

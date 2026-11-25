@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "official": {
+    "repo": "SmartThingsCommunity/SmartThingsEdgeDrivers",
+    "revision": "b01c9e1848d25854da2c6c2a8209ace2c19729eb",
+    "license": "Apache-2.0",
+    "packages": {
+      "zigbee-switch": "cceeb97b3faa82e16e9e599151a0cd79e26390e2",
+      "zigbee-motion-sensor": "9c3f33ad14e1198b10a32679a3e0ac7de752b2e1",
+      "zigbee-window-treatment": "b58c20a5bee05b5576ce3c439b54ed48d7765899",
+      "zigbee-button": "cb1565ea74eb67bc903daa9483237905f388e846",
+      "zigbee-presence-sensor": "d797a09b62ac08323d0cbe354bee45beccb9a537",
+      "zigbee-power-meter": "4f69f0e72e6bb18ced5d92a48a48af5de8e775c5",
+      "zigbee-sensor": "348d1866139bec6a8c57598ea0cf9e7026bbdf48",
+      "zigbee-contact": "0258d5360a314c426f64010e3371bd76e7780111",
+      "zigbee-humidity-sensor": "6bde23ed2563361aa4eb6e851512abbc4f4abacd",
+      "zigbee-illuminance-sensor": "6f9d3c5554ef723f985e2ac5cafbc6e95e97b684",
+      "zigbee-water-leak-sensor": "6f4b879108b17e328b4b2538d6dfeb946a68023e",
+      "zigbee-dimmer-remote": "ed6969cbc8660511e18d0817fddda7f7427bc76c"
+    }
+  },
+  "wonjj": {
+    "repo": "wonjj6768/smartthings-zigbee-edge-drivers",
+    "revision": "2c97fe1729dc74ee598737a98296ae7c3b902257",
+    "license": "MIT"
+  }
+}

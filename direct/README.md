@@ -54,3 +54,5 @@ HA에서는 MQTT 통합만 활성화하면 됩니다. Rules, 가상 브리지, P
 ## 라이선스
 
 원본 MIT 라이선스는 생성 패키지에 LICENSE.upstream으로 포함합니다. 원본 프로젝트 및 Zigbee2MQTT/zigbee-herdsman-converters의 기여를 명시합니다. 신규 MQTT 모듈은 ST 프로젝트에서 관리합니다.
+
+삼성 공식 기반 및 기타 공개 SDK 드라이버는 [Universal 빌더](../universal/README.md)를 참고하세요.

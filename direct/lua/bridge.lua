@@ -209,7 +209,10 @@ local function incoming(s,c,t,payload,retained)
     end
    end
    cmd.component=component
-   s.handlers[cmd.capability][cmd.command](s.driver,d,cmd)
+   if s.inject then
+    -- The SDK resolves the actual matching subdriver and translates named_args.
+    s.driver:inject_capability_command(d,{capability=cmd.capability,command=cmd.command,component=component,named_args=cmd.args})
+   else s.handlers[cmd.capability][cmd.command](s.driver,d,cmd) end
   end)
  end)
 end
@@ -386,6 +389,56 @@ function M.wrap(template,family)
   protected(removed,s,d)
   if original then return original(driver,d,...) end
  end
+ return s
+end
+-- SDK adapter deliberately does not replace lifecycle handlers or default/subdriver dispatch.
+-- Poll only the local driver inventory; no cloud API. Missing devices are removed after two complete scans.
+function M.attach(driver,family)
+ assert(model.safe_token(family))
+ assert(type(driver.inject_capability_command)=="function","SDK command injection unavailable")
+ local supported={}
+ local noop=function() end
+ for cap,names in pairs({
+  switch={"on","off"},switchLevel={"setLevel"},windowShade={"open","close","pause"},
+  windowShadeLevel={"setShadeLevel"},colorControl={"setColor"},colorTemperature={"setColorTemperature"}
+ }) do
+  supported[cap]={};for _,name in ipairs(names) do supported[cap][name]=noop end
+ end
+ local s={family=family,handlers=supported,devices={},tombstones={},generation=0,inject=true,driver=driver,missing={},scan_busy=false}
+ local function signature(d)
+  local p=d.preferences or {};local keys={}
+  for k,comp in pairs(d.profile.components or {}) do
+   local c=caps_of(comp);local names={};for name in pairs(c) do names[#names+1]=name end;table.sort(names)
+   keys[#keys+1]=tostring(k)..":"..table.concat(names,",")
+  end
+  table.sort(keys)
+  return table.concat(keys,";").."|"..tostring(d.profile.id).."|"..tostring(d.label).."|"..tostring(p.stMqttExport)
+ end
+ local function scan()
+  local list=driver:get_devices()
+  if type(list)~="table" then return end
+  local seen={}
+  for _,d in ipairs(list) do
+   if not child(d) and model.safe_token(d.id) then
+    seen[d.id]=true;s.missing[d.id]=nil
+    local rec=s.devices[d.id];local sig=signature(d)
+    if not rec or rec.device~=d or rec.signature~=sig then
+     track(s,driver,d)
+     if s.devices[d.id] then s.devices[d.id].signature=sig end
+    end
+   end
+  end
+  local absent={}
+  for id,rec in pairs(s.devices) do
+   if not seen[id] then
+    s.missing[id]=(s.missing[id] or 0)+1
+    if s.missing[id]>=2 then absent[#absent+1]=rec.device end
+   end
+  end
+  for _,d in ipairs(absent) do removed(s,d);s.missing[d.id]=nil end
+  reconfigure(s)
+ end
+ driver:call_on_schedule(3,function() protected(scan) end,"st-direct-inventory")
  return s
 end
 return M

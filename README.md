@@ -42,3 +42,7 @@ Python contract unit tests, Lua packet/transport/manager contract tests, GitHub 
 ## Rules 없는 직접 MQTT 연동 (별도 개발 후보)
 
 [ST Direct MQTT](direct/README.md): 기존 Zigbee Edge 드라이버에 MQTT를 내장하는 별도 방식. 기존 Rules 통합과 병행 가능. 기기별 Rules/PAT 없이 자동 MQTT Discovery를 목표로 하며, 신규 드라이버는 실기 검증 전입니다.
+
+## 삼성 공식 및 타사 공개 드라이버 확장
+
+[ST Universal Bridge 0.2 개발 후보](universal/README.md): 삼성 공식 기반과 wonjj 기반 패키지 빌드, 공개 SDK 드라이버의 검토 후 변환, 읽기 전용 기기 인벤토리 분류를 제공합니다. 기존 Rules 방식은 유지합니다.
