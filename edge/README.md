@@ -45,3 +45,5 @@ HA HACS 통합도 0.3.0으로 갱신 후 재시작하고 종류 cover로 등록�
     python tools/edge_rules.py --device PHYSICAL_UUID --proxy NEW_PROXY_UUID --kind cover
 
 출력된 10개 Rules를 개별 설치(또는 앱의 해당 조건/동작으로 생성)하고 각각 로컬 실행 확인. 기존 물리 창문 스케줄은 테스트 중 일시 정지하고 수동으로 안전한 환경에서 확인하세요. 창문 움직임을 직접 볼 수 있는 상태에서만 첫 제어 테스트를 진행하세요. 위치 조회 및 명령은 추후 지원. 브리지 초기화 시 상태는 실제 보고 전까지 unknown입니다.
+
+Windows CLI 사용자: Python 대신 tools/install_cover_rules.ps1을 사용할 수 있습니다. PowerShell에서 -Physical 실제 UUID -Proxy 새 프록시 UUID -Location 위치 UUID를 입력합니다. 기본은 dry run이며 -Apply를 추가해야 실제 생성됩니다. 기존 Rule과 이름이 겹치거나 Local 확인이 실패하면 중단하고 생성 ID를 출력합니다. 실제 CLI 실행 검증은 아직 필요합니다.

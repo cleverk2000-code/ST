@@ -35,7 +35,7 @@ components:
       - id: switchLevel
         version: 1
     categories:
-      - name: Dimmer
+      - name: Switch
 preferences:
   - name: brokerIp
     title: Broker IPv4
