@@ -1,0 +1,27 @@
+name: ST Direct checks
+on:
+  push:
+    paths: ['direct/**','.github/workflows/direct.yml']
+  pull_request:
+    paths: ['direct/**','.github/workflows/direct.yml']
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install PyYAML
+      - run: python -m unittest discover -s direct/tests -p 'test_*.py' -v
+      - run: sudo apt-get update && sudo apt-get install -y lua5.3
+      - run: find direct/lua -name '*.lua' -exec luac5.3 -p {} \;
+      - run: lua5.3 direct/tests/test_model.lua
+      - run: python direct/build.py --out /tmp/st-direct-build
+      - run: find /tmp/st-direct-build -name '*.lua' -exec luac5.3 -p {} \;
+      - run: python direct/build.py --find _TZ3210_5rta89nj TS0601
+      - uses: actions/upload-artifact@v4
+        with:
+          name: st-direct-window-and-plug
+          path: /tmp/st-direct-build

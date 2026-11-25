@@ -38,3 +38,7 @@ Python contract unit tests, Lua packet/transport/manager contract tests, GitHub 
 기존 검증용 v0.3.1 코드는 [legacy-v0.3.1](https://github.com/cleverk2000-code/ST/tree/legacy-v0.3.1)에 보존되어 있습니다. 기존 수동 등록 경로도 남겨둡니다.
 
 참고: https://developer.smartthings.com/docs/automations/rules · https://developer.smartthings.com/docs/devices/hub-connected/driver-channels/ · https://www.home-assistant.io/integrations/mqtt/
+
+## Rules 없는 직접 MQTT 연동 (별도 개발 후보)
+
+[ST Direct MQTT](direct/README.md): 기존 Zigbee Edge 드라이버에 MQTT를 내장하는 별도 방식. 기존 Rules 통합과 병행 가능. 기기별 Rules/PAT 없이 자동 MQTT Discovery를 목표로 하며, 신규 드라이버는 실기 검증 전입니다.
