@@ -21,7 +21,7 @@
     python3 tools/edge_rules.py --device 실제UUID --proxy 프록시UUID
 
 각 Rule을 SmartThings Rules API로 개별 등록하거나 SmartThings 앱에서 동일 루틴을 수동 구성하세요. commandOn 버튼 pushed → 물리 스위치 on; commandOff → 물리 스위치 off; 물리 스위치 on/off → 프록시 main switch on/off. 센서는 --kind motion/contact/moisture/presence 사용, 상태 보고 Rules만 생성됩니다. 모든 Rule의 executionLocation=Local 확인 필수. 초기 상태는 물리 기기의 실제 상태 변경 후 보고됩니다. 프록시 main 스위치는 상태 보고용이며 직접 앱에서 누르지 마세요.
-6. 기존 HA ST Local Bridge 통합에 실제 UUID를 등록합니다. 스위치 명령 토픽은 /on 및 /off, payload pushed. 상태는 /state on/off. /availability 및 /heartbeat는 수동 관찰 가능하며 기존 HA 통합에는 아직 연결되지 않았습니다.
+6. 기존 HA ST Local Bridge 통합에 실제 UUID를 등록합니다. 스위치 명령 토픽은 /on 및 /off, payload pushed. 상태는 /state on/off. /availability 및 /heartbeat는 HA 통합에서 전용 Edge 옵션을 선택하면 자동 감시합니다.
 7. 다음 기기 추가 시 현재 프록시에 UUID를 입력한 뒤 다시 주변 검색. 중복 물리 UUID 설정 금지. 기존 TAustin 토픽과 같은 UUID로 동시에 연결하지 마세요.
 8. 브로커 재시작, 인터넷 차단(LAN 유지), TV 대기 상태, 동일 ON 반복, HA/허브 재시작 시험. 위험하지 않은 조명 하나만 사용. 기존 클라우드 통합 유지.
 

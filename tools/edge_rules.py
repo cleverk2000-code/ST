@@ -1,7 +1,10 @@
 """Generate Rules for a dedicated ST Local Edge proxy (dry run by default)."""
 import argparse
 import json
-from st_rules import TYPES, uid, rule, action
+try:
+    from .st_rules import TYPES, uid, rule, action
+except ImportError:
+    from st_rules import TYPES, uid, rule, action
 
 def build(physical, proxy, kind="switch"):
     physical, proxy = uid(physical), uid(proxy)

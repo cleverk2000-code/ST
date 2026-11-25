@@ -7,7 +7,8 @@
         "data": {
           "name": "기기 이름",
           "device_id": "실제 기기 UUID",
-          "kind": "기기 종류"
+          "kind": "기기 종류",
+          "native_edge": "전용 ST Local Edge 사용 (연결 감시)"
         }
       }
     },

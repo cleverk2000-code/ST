@@ -5,6 +5,7 @@ local socket = cosock.socket
 local log = require "log"
 local wire = require "wire"
 local contexts = {}
+local workers = {}
 local pending_discovery = 0
 
 local function send(sock, data)
@@ -169,7 +170,7 @@ end
 local function stop(device)
   local old = contexts[device.id]
   if old then old.cancel = true; contexts[device.id] = nil end
-  return old
+  return workers[device.id]
 end
 
 local function start(driver, device)
@@ -178,9 +179,11 @@ local function start(driver, device)
   if not p then return end
   local ctx = {device=device, config=p, connected=false}
   contexts[device.id] = ctx
+  workers[device.id] = ctx
   cosock.spawn(function()
     while old and not old.finished do socket.sleep(0.25) end
     if current(ctx) then worker(ctx) else ctx.finished = true end
+    if workers[device.id] == ctx then workers[device.id] = nil end
   end, "stlocal-" .. device.id)
 end
 
@@ -208,9 +211,17 @@ local function refresh(driver, device)
   start(driver, device)
 end
 
+local function info_changed(driver, device, _, args)
+  local before = args and args.old_st_store and args.old_st_store.preferences or {}
+  local after = device.preferences or {}
+  for _, key in ipairs({"brokerIp","brokerPort","mqttUser","mqttPassword","physicalId","enabled"}) do
+    if before[key] ~= after[key] then start(driver, device); return end
+  end
+end
+
 local driver = Driver("st-local-edge", {
   discovery = discovery,
-  lifecycle_handlers = {added=added, init=start, infoChanged=start, removed=function(_,d) stop(d) end},
+  lifecycle_handlers = {added=added, init=start, infoChanged=info_changed, removed=function(_,d) stop(d) end},
   capability_handlers = {
     [cap.switch.ID] = {[cap.switch.commands.on.NAME]=report("on"), [cap.switch.commands.off.NAME]=report("off")},
     [cap.refresh.ID] = {[cap.refresh.commands.refresh.NAME]=refresh}

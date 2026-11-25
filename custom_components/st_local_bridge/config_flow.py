@@ -22,11 +22,13 @@ class BridgeConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     await self.async_set_unique_id(key)
                     self._abort_if_unique_id_configured()
                     return self.async_create_entry(title=name, data={
-                        CONF_NAME: name, "device_id": key, "kind": user_input["kind"]
+                        CONF_NAME: name, "device_id": key, "kind": user_input["kind"],
+                        "native_edge": user_input.get("native_edge", False)
                     })
         return self.async_show_form(step_id="user", errors=errors, data_schema=vol.Schema({
             vol.Required(CONF_NAME): str,
             vol.Required("device_id"): str,
             vol.Required("kind", default="switch"): vol.In(KINDS),
+            vol.Optional("native_edge", default=False): bool,
         }))
 
