@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repair only ST Direct MQTT inline preferences in an existing local build.
+"""Repair ST Direct MQTT generated metadata and inline preferences in an existing local build.
 Validate every package before writing anything. Original vendor settings remain unchanged.
 """
 import argparse,copy,json,os
@@ -13,14 +13,27 @@ def repair(root,check=False):
     names=[x["family"] for x in manifest]
     if len(set(names))!=len(names):raise ValueError("Duplicate package")
     expected={p["name"]:p for p in direct.PREFS}
-    pending=[];count=0;errors=[]
+    pending=[];count=0;errors=[];keys=set()
     for name in names:
         if not build.FAMILY.fullmatch(name):raise ValueError("Invalid family: "+name)
         pkg=root/name
         cfg=next((pkg/n for n in ("config.yml","config.yaml") if (pkg/n).is_file()),None)
         if not cfg:raise ValueError("Missing config: "+name)
-        if direct.read_yaml(cfg.read_text(encoding="utf-8")).get("packageKey")!="cleverk2000.st-direct."+name:
+        metadata=direct.read_yaml(cfg.read_text(encoding="utf-8-sig"))
+        old_key="cleverk2000.st-direct."+name
+        key=direct.package_key(name)
+        if metadata.get("packageKey") not in (old_key,key) or not str(metadata.get("name","")).startswith("ST MQTT "):
             raise ValueError("Not an ST Direct package: "+name)
+        updated=copy.deepcopy(metadata)
+        updated["packageKey"]=key
+        updated["name"]=direct.display_name(metadata["name"])
+        direct.validate_config(updated,name)
+        if key in keys:raise ValueError("Package key collision: "+name)
+        keys.add(key)
+        if updated!=metadata:
+            if check:errors.append(name+": old package metadata")
+            else:pending.append((cfg,direct.yaml.safe_dump(updated,sort_keys=False,allow_unicode=True)))
+        print(f"{name}: packageKey={key} ({len(key)} characters)")
         profiles=sorted((pkg/"profiles").glob("*.y*ml"))
         if not profiles:raise ValueError("Missing profiles: "+name)
         for path in profiles:

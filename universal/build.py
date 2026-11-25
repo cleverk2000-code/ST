@@ -76,9 +76,10 @@ def build_sdk(archive,package,dest,family,license_id,expected=None):
         permissions=cfg.get("permissions") or {}
         if "zigbee" not in permissions or set(permissions)-{"zigbee","lan","discovery"}:raise ValueError("Unsupported permissions")
         cfg["permissions"]={**permissions,"lan":{}}
-        cfg["name"]="ST MQTT "+str(cfg["name"])
-        cfg["packageKey"]="cleverk2000.st-direct."+family
+        cfg["name"]=direct.display_name("ST MQTT "+str(cfg["name"]))
+        cfg["packageKey"]=direct.package_key(family)
         cfg["vendorSupportInformation"]="https://github.com/cleverk2000-code/ST"
+        direct.validate_config(cfg,family)
         config.write_text(yaml.safe_dump(cfg,sort_keys=False,allow_unicode=True),encoding="utf-8")
         init=dest/"src/init.lua";init.write_text(patch(init.read_bytes(),family,expected),encoding="utf-8")
         profiles=list((dest/"profiles").glob("*.y*ml"))

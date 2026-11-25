@@ -20,6 +20,26 @@ DEFAULT=["ef00-covers-2-wonjj6768","zcl-plugs-wonjj6768"]
 ALLOWED=re.compile(r"^(?:ef00-(?:covers|switch|lights|energy|meters|sensors|presence|pir-motion)|zcl-(?:plugs|switch|lights|covers|sensors|controls))(?:[a-z0-9-]*)-wonjj6768$")
 def blob(data):
     return hashlib.sha1(b"blob "+str(len(data)).encode()+b"\0"+data).hexdigest()
+def package_key(family):
+    # API rejects keys longer than 36 characters. Preserve already-valid keys
+    # so successfully installed packages keep their identity on future builds.
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*",family):raise ValueError("Invalid package family")
+    old="cleverk2000.st-direct."+family
+    key=old if len(old)<=36 else "std-"+family[:19].rstrip("-")+"-"+hashlib.sha256(family.encode()).hexdigest()[:12]
+    if not re.fullmatch(r"[a-z0-9.-]{1,36}",key):raise ValueError("Invalid package key")
+    return key
+def display_name(name):
+    # Conservative 36-character limit for our generated display names.
+    name=str(name).strip()
+    if len(name)>36:name=name[:36].rstrip()
+    if len(name)<3:raise ValueError("Invalid driver name")
+    return name
+def validate_config(cfg,family):
+    if cfg.get("packageKey")!=package_key(family):raise ValueError("Invalid package key: "+family)
+    if not isinstance(cfg.get("name"),str) or not 3<=len(cfg["name"])<=36:raise ValueError("Invalid driver name: "+family)
+    if not isinstance(cfg.get("description"),str) or not cfg["description"].strip():raise ValueError("Missing driver description")
+    perms=cfg.get("permissions")
+    if not isinstance(perms,dict) or not {"zigbee","lan"}<=set(perms):raise ValueError("Missing driver permissions")
 def textpref(name,title,default="",password=False,maxlen=64):
     return dict(name=name,title=title,description=title,required=False,preferenceType="string",
         definition=dict(stringType="password" if password else "text",minLength=0,maxLength=maxlen,default=default))
@@ -107,11 +127,12 @@ def build(z,packages,out):
             conf=dest/"config.yml";cfg=read_yaml(conf.read_text(encoding="utf-8"))
             if cfg.get("packageKey")!=name or "zigbee" not in cfg.get("permissions",{}):raise ValueError("Unexpected upstream config")
             family=name.removesuffix("-wonjj6768")
-            cfg["packageKey"]="cleverk2000.st-direct."+family
-            cfg["name"]="ST MQTT "+cfg["name"].replace(" wonjj6768","")
+            cfg["packageKey"]=package_key(family)
+            cfg["name"]=display_name("ST MQTT "+cfg["name"].replace(" wonjj6768",""))
             cfg["description"]="MQTT overlay; original Zigbee support by wonjj6768"
             cfg["vendorSupportInformation"]="https://github.com/cleverk2000-code/ST"
             cfg["permissions"]["lan"]={}
+            validate_config(cfg,family)
             conf.write_text(yaml.safe_dump(cfg,sort_keys=False,allow_unicode=True),encoding="utf-8")
             fingerprints=read_yaml((dest/"fingerprints.yml").read_text(encoding="utf-8"))
             profiles={read_yaml(p.read_text(encoding="utf-8"))["name"] for p in (dest/"profiles").glob("*.y*ml")}

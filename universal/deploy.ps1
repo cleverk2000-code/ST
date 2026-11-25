@@ -100,9 +100,5 @@ if (-not $enrolled.Count){
  if ($LASTEXITCODE -ne 0){throw 'Channel enrollment failed; no driver uploaded'}
 }
 Write-Host "Hub=$HubId Channel=$ChannelId"
-foreach ($entry in $manifest){
- $p=$entry.family
- & smartthings edge:drivers:package (Join-Path $out $p) --channel "$ChannelId" --hub "$HubId"
- if ($LASTEXITCODE -ne 0){throw "Deployment failed at $p; earlier packages may already be installed."}
-}
+& (Join-Path $PSScriptRoot "resume_install.ps1") -Build $out -ChannelId $ChannelId -HubId $HubId
 Write-Host 'Drivers installed. Switch only compatible devices manually; configure MQTT on one device per family.'

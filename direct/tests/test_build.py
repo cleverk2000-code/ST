@@ -31,6 +31,14 @@ class BuildTest(unittest.TestCase):
         self.assertIn('wrap(bv,"test")',out)
         with self.assertRaises(ValueError):b.patch_driver(data,"test")
         with self.assertRaises(ValueError):b.patch_driver(data+data,"test",verify=False)
+    def test_package_keys(self):
+        families=["st-zigbee-motion-sensor","st-zigbee-window-treatment","st-zigbee-switch","ef00-covers-2","ef00-presence-general-2","zcl-plugs","zcl-sensors","custom-"+"a"*55,"custom-"+"a"*54+"b"]
+        keys=[b.package_key(x) for x in families]
+        self.assertEqual(len(keys),len(set(keys)))
+        for k in keys:self.assertRegex(k,r"^[a-z0-9.-]{1,36}$")
+        self.assertEqual(b.package_key("zcl-plugs"),"cleverk2000.st-direct.zcl-plugs")
+        self.assertEqual(b.package_key(families[0]),keys[0])
+        self.assertLessEqual(len(b.display_name("ST MQTT "+"x"*100)),36)
     def test_allowed(self):
         self.assertTrue(b.ALLOWED.fullmatch("ef00-covers-2-wonjj6768"))
         self.assertTrue(b.ALLOWED.fullmatch("zcl-plugs-wonjj6768"))
