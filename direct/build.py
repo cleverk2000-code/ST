@@ -27,13 +27,26 @@ def boolpref(name,title,default):
     return dict(name=name,title=title,description=title,required=True,preferenceType="boolean",definition=dict(default=default))
 PREFS=[
     boolpref("stMqttExport","Export to HA MQTT",True),
-    boolpref("stMqttMaster","Use this device for driver MQTT settings",False),
+    boolpref("stMqttMaster","MQTT master device",False),
     textpref("stMqttHost","MQTT broker IPv4","192.168.0.19",maxlen=15),
     dict(name="stMqttPort",title="MQTT broker port",description="MQTT broker port",required=True,preferenceType="integer",definition=dict(minimum=1,maximum=65535,default=1883)),
     textpref("stMqttUser","MQTT username"),
     textpref("stMqttPass","MQTT password",password=True,maxlen=128),
     textpref("stMqttSite","MQTT site identifier","home",maxlen=32),
 ]
+def validate_mqtt_preferences(prefs):
+    expected={p["name"]:p for p in PREFS}
+    seen=set()
+    for p in prefs:
+        name=p.get("name")
+        if name not in expected:continue
+        if name in seen:raise ValueError("Duplicate MQTT preference: "+name)
+        seen.add(name)
+        title=p.get("title")
+        if not isinstance(title,str) or not 3<=len(title)<=36 or not re.fullmatch(r"[A-Za-z][A-Za-z0-9 ]*",title):
+            raise ValueError("Invalid MQTT preference title: "+name)
+        if p!=expected[name]:raise ValueError("MQTT preference schema mismatch: "+name)
+    if seen!=set(expected):raise ValueError("Incomplete MQTT preferences")
 def patch_profile(content):
     obj=read_yaml(content)
     if not isinstance(obj,dict) or not isinstance(obj.get("components"),list) or not obj.get("name"):
@@ -43,6 +56,7 @@ def patch_profile(content):
     names={p.get("name") or p.get("preferenceId") for p in prefs}
     if names & {p["name"] for p in PREFS}:raise ValueError("Preference collision")
     prefs.extend(PREFS)
+    validate_mqtt_preferences(prefs)
     return yaml.safe_dump(obj,allow_unicode=True,sort_keys=False,width=120)
 def patch_driver(data,family,verify=True):
     if verify and blob(data)!=DRIVER_BLOB:raise ValueError("Upstream driver changed; review before patch")

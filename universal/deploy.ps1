@@ -71,6 +71,8 @@ if (-not $AllOfficial -and -not $Bootstrap -and $knownCount -eq 0 -and $existing
 }
 & $exe @pyArgs (Join-Path $PSScriptRoot 'build.py') --out $out @buildArgs @customArgs
 if ($LASTEXITCODE -ne 0){throw 'Build failed; no driver uploaded'}
+& $exe @pyArgs (Join-Path $PSScriptRoot 'repair_profiles.py') $out --check
+if ($LASTEXITCODE -ne 0){throw 'Profile validation failed; no upload'}
 if (-not $Install){Write-Host "Build only: $out";return}
 $manifest=@(Get-Content -LiteralPath (Join-Path $out 'manifest.json') -Raw | ConvertFrom-Json)
 $manifest | Format-Table family,adapter -AutoSize

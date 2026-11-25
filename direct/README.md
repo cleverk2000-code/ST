@@ -31,7 +31,7 @@ Windows에서 Python 3.10+ 및 SmartThings CLI 필요. PyYAML 설치: `py -3 -m 
 
 SmartThings 앱에서 호환 기기 → 드라이버 변경 → ST MQTT 계열을 선택(지원되는 경우). **원본 프로젝트는 재페어링을 권장합니다.** 재페어링 없이 변경 가능한지 먼저 확인하고 기존 자동화/기기 설정을 백업하세요. 정상 변경 시 먼저 비위험 조명/플러그로 검증하세요. 기기 자체에 기존 MQTT 설정은 없으며, 같은 패키지에 속한 기기 중 하나에서 아래 설정만 입력합니다.
 
-- Use this device for driver MQTT settings = ON
+- MQTT master device = ON
 - MQTT broker IPv4 = HA LAN IP (기본 192.168.0.19)
 - MQTT broker port = 1883
 - MQTT username/password = 전용 MQTT 계정

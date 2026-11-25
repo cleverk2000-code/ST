@@ -16,6 +16,12 @@ class BuildTest(unittest.TestCase):
         source="{name: p,components: [],deviceConfig: {x: on, y: off, z: true}}"
         new=b.read_yaml(b.patch_profile(source))
         self.assertEqual(new["deviceConfig"],{"x":"on","y":"off","z":True})
+    def test_preference_constraints(self):
+        prefs=b.read_yaml(b.patch_profile("{name: p,components: []}"))["preferences"]
+        b.validate_mqtt_preferences(prefs)
+        for p in prefs:self.assertTrue(3<=len(p["title"])<=36)
+        next(p for p in prefs if p["name"]=="stMqttMaster")["title"]="Use this device for driver MQTT settings"
+        with self.assertRaises(ValueError):b.validate_mqtt_preferences(prefs)
     def test_duplicate(self):
         with self.assertRaises(ValueError):b.patch_profile("{name: p,components: [],preferences:[{name: stMqttMaster}]}")
     def test_patch(self):
