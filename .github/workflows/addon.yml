@@ -17,6 +17,8 @@ jobs:
       - run: docker run --rm st-universal-manager-test smartthings --version
       - run: docker run --rm -e ST_DATA=/tmp/st-test -v "$PWD/st_universal_manager/tests/full_dryrun.py:/tmp/full_dryrun.py:ro" st-universal-manager-test python3 /tmp/full_dryrun.py
       - run: docker run -d --name st-manager-test -e ST_TEST=1 -p 127.0.0.1:8099:8099 st-universal-manager-test
-      - run: curl --retry 10 --retry-connrefused --fail http://127.0.0.1:8099/ | grep 'ST Universal Manager'
+      - run: curl --retry 10 --retry-all-errors --retry-delay 2 --fail http://127.0.0.1:8099/ | grep 'ST Universal Manager'
+      - if: failure()
+        run: docker logs st-manager-test || true
       - if: always()
         run: docker rm -f st-manager-test || true

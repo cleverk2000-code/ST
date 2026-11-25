@@ -4,7 +4,7 @@ import manager as m
 app=Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"]=32768
 app.secret_key=secrets.token_bytes(32)
-app.config.update(SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE="Strict")
+app.config.update(SESSION_COOKIE_NAME="st_universal_admin",SESSION_COOKIE_HTTPONLY=True,SESSION_COOKIE_SAMESITE="Strict")
 auth_cache={}
 csrf=secrets.token_urlsafe(32)
 lock=threading.Lock()
