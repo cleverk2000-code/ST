@@ -1,7 +1,7 @@
 import os,sys,tempfile,unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
-os.environ["ST_SOURCE"]=str(Path(__file__).resolve().parents[2].parent)
+os.environ["ST_SOURCE"]=str(Path(__file__).resolve().parents[2])
 import manager as m
 class TestManager(unittest.TestCase):
  def test_config(self):

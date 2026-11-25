@@ -5,9 +5,9 @@ app=Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"]=32768
 csrf=secrets.token_urlsafe(32)
 lock=threading.Lock()
-state={"busy":False,"lines":["Ready"],"ok":None}
-HUB="4bea0363-9f70-41fc-873e-79abc1a614b7"
-CHANNEL="0a5fa625-b1aa-4046-a5fa-8bf46aeb8331"
+state={"busy":False,"lines":["Ready"],"ok":None,"hub":"","channel":""}
+HUB=""
+CHANNEL=""
 PAGE="""<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ST Universal Manager</title><style>body{font:16px system-ui,sans-serif;margin:0 auto;padding:18px;max-width:760px;color:#dde4ed;background:#18212a}fieldset{border:1px solid #52606d;border-radius:8px;margin:14px 0;padding:14px}label{display:block;margin:9px 0}input:not([type=checkbox]):not([type=radio]){box-sizing:border-box;width:100%;padding:10px;margin-top:4px;border:1px solid #687684;border-radius:5px;background:#0f1720;color:#fff}button{padding:12px 18px;background:#2879b8;color:#fff;border:0;border-radius:6px;margin:5px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#101820;padding:12px}a{color:#87ceff}small{color:#afbecb}</style>
 <h2>ST Universal Manager</h2><p>기존 드라이버 ID를 확인한 뒤 업데이트합니다. 기기 삭제, 드라이버 강제 변경 및 채널 삭제는 하지 않습니다.</p>
@@ -45,8 +45,12 @@ def worker(token,hub,channel,families,cfg,action,allow_new):
         if action!="inventory":m.build_and_deploy(cli,hub,channel,plan,cfg,action=="apply",report)
         with lock:state["ok"]=True
     except (ValueError,RuntimeError) as e:
-        # Only application-controlled messages; do not emit arbitrary response bodies.
-        report("STOP: "+str(e))
+        # Never reflect a token or MQTT secret even if a downstream exception contains it.
+        msg=str(e).replace(token,"[redacted]")
+        if cfg:
+            for secret in (cfg["password"],):
+                if secret:msg=msg.replace(secret,"[redacted]")
+        report("STOP: "+msg)
         with lock:state["ok"]=False
     except Exception:
         report("STOP: unexpected error; no automatic retry. Check installed drivers before retry.")
@@ -57,7 +61,7 @@ def page():
     try:cfg=m.read_config() or {}
     except Exception:cfg={}
     with lock:busy=state["busy"];lines="\n".join(state["lines"])
-    return render_template_string(PAGE,csrf=csrf,busy=busy,hub=HUB,channel=CHANNEL,families=m.FAMILIES,host=cfg.get("host","192.168.0.19"),port=cfg.get("port",1883),user=cfg.get("user","cleverk"),site=cfg.get("site","home"),placeholder="저장된 암호 사용" if cfg else "MQTT 비밀번호",log=lines)
+    return render_template_string(PAGE,csrf=csrf,busy=busy,hub=state["hub"],channel=state["channel"],families=m.FAMILIES,host=cfg.get("host","192.168.0.19"),port=cfg.get("port",1883),user=cfg.get("user",""),site=cfg.get("site","home"),placeholder="저장된 암호 사용" if cfg else "MQTT 비밀번호",log=lines)
 @app.before_request
 def ingress_only():
     if request.remote_addr not in ("172.30.32.2","127.0.0.1","::1") and os.getenv("ST_TEST")!="1":abort(403)
@@ -86,7 +90,7 @@ def index():
         with lock:
             if state["busy"]:return "Another job is active",409
             if cfg and f.get("save"):m.save_config(cfg)
-            state.update(busy=True,lines=["Job started: "+action],ok=None)
+            state.update(busy=True,lines=["Job started: "+action],ok=None,hub=hub,channel=channel)
         threading.Thread(target=worker,args=(token,hub,channel,families,cfg,action,bool(f.get("allow_new"))),daemon=True).start()
     except (ValueError,KeyError):return "Invalid fields or missing consent/confirmation. Return and check the form.",400
     return page()
