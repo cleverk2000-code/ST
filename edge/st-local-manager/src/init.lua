@@ -74,7 +74,7 @@ local function normalize_fields(fields)
     if not C.fields[field] and field~="stop" then error("invalid field") end
     spec[field]=true
   end
-  if not next(spec) or (spec.stop and not spec.shade) or (spec.switch and spec.shade) then error("invalid fields") end
+  if not next(spec) or (spec.stop and not spec.shade) or (spec.switch and spec.shade) or (spec.position and not spec.shade) or (spec.brightness and not spec.switch) then error("invalid fields") end
   return spec
 end
 local function control(c,payload)
@@ -98,7 +98,10 @@ local function control(c,payload)
       local d=proxies()[id]
       if d then
         local spec=active(d)
-        if spec then invalidate(c,id,spec) end
+        if spec then
+          for t in pairs(c.queue) do if t:sub(1,#base(c,id)+1)==base(c,id).."/" then c.queue[t]=nil end end
+          invalidate(c,id,spec)
+        end
         d:set_field("stlb1_active",nil,{persist=true})
       end
     elseif msg.op=="sync" and id then
@@ -127,12 +130,12 @@ local function incoming(c,topic,payload,retained)
     d:emit_component_event(d.profile.components[component],cap.switchLevel.level(v,{state_change=true}))
   else button(d,component) end
 end
-local function report(_,d,command)
+local function report(capability,d,command)
   local id=physical(d)
   local spec=id and active(d)
   if not spec or not ctx then return end
-  local raw=command.args and (command.args.level or command.args.setpoint)
-  local field,value=C.report(command.component,tonumber(raw))
+  local raw=command.args and (command.args.level or command.args.setpoint or command.args.volume)
+  local field,value=C.report(command.component,capability,tonumber(raw),spec)
   if not field or not spec[field] or value==nil then return end
   if field=="button" then
     -- Event payload is never retained. Drop offline events instead of replaying.
@@ -297,8 +300,10 @@ driver=Driver("st-local-manager",{
   lifecycle_handlers={added=added,init=function(_,d) restart(d) end,infoChanged=info_changed,removed=removed},
   capability_handlers={
     [cap.refresh.ID]={[cap.refresh.commands.refresh.NAME]=function(_,d) if physical(d) and ctx then request_sync(ctx,physical(d),d) else restart(d) end end},
-    [cap.switchLevel.ID]={[cap.switchLevel.commands.setLevel.NAME]=report},
-    [cap.thermostatHeatingSetpoint.ID]={[cap.thermostatHeatingSetpoint.commands.setHeatingSetpoint.NAME]=report}
+    [cap.switchLevel.ID]={[cap.switchLevel.commands.setLevel.NAME]=function(_,d,c) report("switchLevel",d,c) end},
+    [cap.audioVolume.ID]={[cap.audioVolume.commands.setVolume.NAME]=function(_,d,c) report("audioVolume",d,c) end},
+    [cap.thermostatHeatingSetpoint.ID]={[cap.thermostatHeatingSetpoint.commands.setHeatingSetpoint.NAME]=function(_,d,c) report("thermostatHeatingSetpoint",d,c) end},
+    [cap.thermostatCoolingSetpoint.ID]={[cap.thermostatCoolingSetpoint.commands.setCoolingSetpoint.NAME]=function(_,d,c) report("thermostatCoolingSetpoint",d,c) end}
   }
 })
 driver:run()

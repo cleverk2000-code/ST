@@ -76,3 +76,7 @@ class ManagerOptions(config_entries.OptionsFlow):
         names=dict(self._choices)
         result="\n".join(f"{names.get(k,k)}: {v}" for k,v in (self._result or {}).items())
         return self.async_show_form(step_id="result",data_schema=vol.Schema({}),description_placeholders={"result":result})
+
+class LegacyOptions(config_entries.OptionsFlow):
+    async def async_step_init(self,user_input=None):
+        return self.async_abort(reason="legacy_no_options")

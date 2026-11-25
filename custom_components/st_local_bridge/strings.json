@@ -29,6 +29,20 @@
           "kind": "Kind",
           "native_edge": "Native Edge"
         }
+      },
+      "initial_select": {
+        "title": "Select local devices",
+        "description": "Select multiple devices, or leave empty to add later.",
+        "data": {
+          "devices": "Devices"
+        }
+      },
+      "initial_progress": {
+        "title": "Configuring local bridge"
+      },
+      "initial_result": {
+        "title": "Setup results",
+        "description": "{result}"
       }
     },
     "error": {
@@ -39,6 +53,9 @@
     },
     "abort": {
       "already_configured": "Already configured"
+    },
+    "progress": {
+      "provisioning": "Creating proxies and verifying local Rules."
     }
   },
   "options": {
@@ -77,7 +94,8 @@
     },
     "abort": {
       "no_devices": "No eligible devices.",
-      "manager_unreachable": "Manager unreachable"
+      "manager_unreachable": "Manager unreachable",
+      "legacy_no_options": "Legacy manual entry has no options."
     },
     "progress": {
       "provisioning": "Configuring proxies and Local Rules"

@@ -29,6 +29,20 @@
           "kind": "기기 종류",
           "native_edge": "전용 Edge 사용"
         }
+      },
+      "initial_select": {
+        "title": "로컬 연동할 기기 선택",
+        "description": "복수 선택 가능합니다. 나중에 추가하려면 빈 목록으로 진행하세요.",
+        "data": {
+          "devices": "기기"
+        }
+      },
+      "initial_progress": {
+        "title": "로컬 브리지 설정"
+      },
+      "initial_result": {
+        "title": "등록 결과",
+        "description": "{result}"
       }
     },
     "error": {
@@ -39,6 +53,9 @@
     },
     "abort": {
       "already_configured": "이미 등록됨"
+    },
+    "progress": {
+      "provisioning": "프록시와 로컬 Rules를 등록하고 있습니다."
     }
   },
   "options": {
@@ -77,7 +94,8 @@
     },
     "abort": {
       "no_devices": "선택할 기기가 없습니다.",
-      "manager_unreachable": "관리자 MQTT 연결 실패"
+      "manager_unreachable": "관리자 MQTT 연결 실패",
+      "legacy_no_options": "수동 브리지는 옵션이 없습니다."
     },
     "progress": {
       "provisioning": "가상 브리지 및 Local Rules 구성 중"

@@ -19,8 +19,18 @@ NUMBERS = {
     "temperature": ("temperatureMeasurement","temperature","temperatureReport",-460,10000),
 }
 BUTTONS = {"pushed":0,"held":1,"double":2}
-REPORT_COMPONENTS = {v[2] for v in ENUMS.values()} | {v[2] for v in NUMBERS.values()} | {"buttonReport"}
-REQUIRED_COMPONENTS = REPORT_COMPONENTS | {"main","commandOn","commandOff","commandStop","commandLevel","commandPosition","sync"}
+# Ten components maximum; each field is distinguished by component + capability.
+REPORT_TARGETS = {
+    "switch":("reportA","switchLevel","setLevel"),"shade":("reportA","switchLevel","setLevel"),
+    "temperature":("reportA","thermostatHeatingSetpoint","setHeatingSetpoint"),
+    "humidity":("reportA","thermostatCoolingSetpoint","setCoolingSetpoint"),
+    "battery":("reportA","audioVolume","setVolume"),
+    "motion":("reportB","switchLevel","setLevel"),"contact":("reportB","audioVolume","setVolume"),
+    "presence":("reportB","thermostatHeatingSetpoint","setHeatingSetpoint"),
+    "water":("reportC","switchLevel","setLevel"),"button":("reportC","audioVolume","setVolume"),
+    "brightness":("reportD","switchLevel","setLevel"),"position":("reportD","switchLevel","setLevel"),
+}
+REQUIRED_COMPONENTS = {"main","commandOn","commandOff","commandStop","sync","commandLevel","reportA","reportB","reportC","reportD"}
 
 def uid(value):
     result = UUID(str(value))
@@ -44,7 +54,7 @@ def components(d):
 
 def is_manager(d):
     lan = d.get("lan") or {}
-    return d.get("type") == "LAN" and (lan.get("deviceNetworkId") == "stlb1-manager"
+    return d.get("type") == "LAN" and ((lan.get("deviceNetworkId") or lan.get("networkId") or d.get("deviceNetworkId")) == "stlb1-manager"
         or (d.get("name") == "ST Local Manager" and components(d)=={"main":{"refresh"}})
         or ((d.get("label") or "").startswith("ST Local Manager") and components(d)=={"main":{"refresh"}}))
 
@@ -103,7 +113,7 @@ def make_rules(physical,proxy,fields):
     physical,proxy=uid(physical),uid(proxy)
     if physical==proxy: raise ValueError("Physical and proxy must differ")
     fields=set(fields)
-    if not fields or fields- (set(ENUMS)|set(NUMBERS)|{"stop","button"}) or {"switch","shade"}<=fields:
+    if not fields or fields- (set(ENUMS)|set(NUMBERS)|{"stop","button"}) or {"switch","shade"}<=fields or ("stop" in fields and "shade" not in fields) or ("position" in fields and "shade" not in fields) or ("brightness" in fields and "switch" not in fields):
         raise ValueError("Unsupported field combination")
     rules=[]; sync=[]
     def add(suffix,action):
@@ -111,19 +121,20 @@ def make_rules(physical,proxy,fields):
     for field,(cap,attr,comp,values) in ENUMS.items():
         if field not in fields: continue
         for value,code in values.items():
-            action=command(proxy,"switchLevel","setLevel",comp,[{"integer":code}])
+            target,target_cap,target_cmd=REPORT_TARGETS[field]
+            action=command(proxy,target_cap,target_cmd,target,[{"integer":code}])
             add(f"{field} {code}",eq(operand(physical,cap,attr),value,[action]))
             sync.append(eq(operand(physical,cap,attr,trigger="Never"),value,[action]))
     for field,(cap,attr,comp,lo,hi) in NUMBERS.items():
         if field not in fields: continue
-        target_cap,target_cmd=("thermostatHeatingSetpoint","setHeatingSetpoint") if field=="temperature" else ("switchLevel","setLevel")
-        action=command(proxy,target_cap,target_cmd,comp,[operand(physical,cap,attr,trigger="Never")])
+        target,target_cap,target_cmd=REPORT_TARGETS[field]
+        action=command(proxy,target_cap,target_cmd,target,[operand(physical,cap,attr,trigger="Never")])
         add(f"{field} report",number_guard(physical,cap,attr,"main",lo,hi,"Always",[action]))
         sync.append(number_guard(physical,cap,attr,"main",lo,hi,"Never",[action]))
     if "button" in fields:
         for value,code in BUTTONS.items():
             add(f"button {code}",eq(operand(physical,"button","button"),value,
-                [command(proxy,"switchLevel","setLevel","buttonReport",[{"integer":code}])]))
+                [command(proxy,"audioVolume","setVolume","reportC",[{"integer":code}])]))
     if sync:
         add("sync",eq(operand(proxy,"button","button","sync"),"pushed",sync))
     pairs=[]
@@ -133,7 +144,7 @@ def make_rules(physical,proxy,fields):
         if "stop" in fields: pairs += [("commandStop","windowShade","pause")]
     for component,cap,cmd in pairs:
         add(f"command {cmd}",eq(operand(proxy,"button","button",component),"pushed",[command(physical,cap,cmd)]))
-    for field,component,cap,cmd in (("brightness","commandLevel","switchLevel","setLevel"),("position","commandPosition","windowShadeLevel","setShadeLevel")):
+    for field,component,cap,cmd in (("brightness","commandLevel","switchLevel","setLevel"),("position","commandLevel","windowShadeLevel","setShadeLevel")):
         if field in fields:
             add(f"command {field}",number_guard(proxy,"switchLevel","level",component,0,100,"Always",
                 [command(physical,cap,cmd,args=[operand(proxy,"switchLevel","level",component,"Never")])]))
@@ -154,12 +165,9 @@ def discovery(manager, record):
     result=[]
     if "switch" in fields:
         light="brightness" in fields or record.get("light",False)
-        extra={"command_topic":f"{base}/cmd/switch","state_topic":f"{base}/switch/state","payload_on":"ON","payload_off":"OFF","state_on":"on","state_off":"off","optimistic":False,"qos":1,"retain":False}
-        # MQTT light uses payload_on/off for both command and state. Normalize via state template.
-        extra.pop("state_on");extra.pop("state_off")
-        extra["state_value_template"]="{{ value | upper }}" if not light else "{{ value | upper }}"
+        extra={"command_topic":f"{base}/cmd/switch","state_topic":f"{base}/switch/state","payload_on":"on","payload_off":"off","optimistic":False,"qos":1,"retain":False}
         if "brightness" in fields:
-            extra.update(brightness_command_topic=f"{base}/cmd/brightness",brightness_state_topic=f"{base}/brightness/state",brightness_scale=100,on_command_type="brightness")
+            extra.update(brightness_command_topic=f"{base}/cmd/brightness",brightness_state_topic=f"{base}/brightness/state",brightness_scale=100,on_command_type="first")
         result.append(cfg("switch","light" if light else "switch",extra))
     if "shade" in fields:
         extra={"command_topic":f"{base}/cmd/shade","state_topic":f"{base}/shade/state","payload_open":"OPEN","payload_close":"CLOSE","state_open":"open","state_closed":"closed","state_opening":"opening","state_closing":"closing","state_stopped":"stopped","optimistic":False,"qos":1,"retain":False,"device_class":"window"}

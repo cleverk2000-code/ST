@@ -30,87 +30,45 @@ components:
         version: 1
     categories:
       - name: RemoteController
-  - id: switchReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
-  - id: shadeReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
-  - id: levelReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
-  - id: positionReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
-  - id: motionReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
-  - id: contactReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
-  - id: presenceReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
-  - id: waterReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
-  - id: humidityReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
-  - id: batteryReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
-  - id: buttonReport
-    capabilities:
-      - id: switchLevel
-        version: 1
-    categories:
-      - name: Switch
   - id: commandLevel
     capabilities:
       - id: switchLevel
         version: 1
     categories:
       - name: Switch
-  - id: commandPosition
+  - id: reportA
+    capabilities:
+      - id: switchLevel
+        version: 1
+      - id: thermostatHeatingSetpoint
+        version: 1
+      - id: thermostatCoolingSetpoint
+        version: 1
+      - id: audioVolume
+        version: 1
+    categories:
+      - name: Switch
+  - id: reportB
+    capabilities:
+      - id: switchLevel
+        version: 1
+      - id: audioVolume
+        version: 1
+      - id: thermostatHeatingSetpoint
+        version: 1
+    categories:
+      - name: Switch
+  - id: reportC
+    capabilities:
+      - id: switchLevel
+        version: 1
+      - id: audioVolume
+        version: 1
+    categories:
+      - name: Switch
+  - id: reportD
     capabilities:
       - id: switchLevel
         version: 1
     categories:
       - name: Switch
-  - id: temperatureReport
-    capabilities:
-      - id: thermostatHeatingSetpoint
-        version: 1
-    categories:
-      - name: Thermostat

@@ -5,7 +5,7 @@ components:
       - id: refresh
         version: 1
     categories:
-      - name: NetworkAudio
+      - name: RemoteController
 preferences:
   - name: brokerIp
     title: Broker IPv4

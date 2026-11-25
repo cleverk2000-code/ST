@@ -4,6 +4,7 @@ import json
 import logging
 from uuid import uuid4
 from homeassistant.components import mqtt
+from homeassistant.core import callback
 from homeassistant.helpers.storage import Store
 from .manager_contract import uid, root, hub_id, driver_id, components, specs, make_rules, discovery, REQUIRED_COMPONENTS, is_manager
 from .manager_api import ApiError
@@ -25,18 +26,37 @@ class Manager:
         await mqtt.async_publish(self.hass,topic,payload,qos=1,retain=retain)
     async def rpc(self,op,**kwargs):
         req=str(uuid4()); future=asyncio.get_running_loop().create_future()
+        @callback
         def received(msg):
             try:
                 data=json.loads(msg.payload)
                 if data.get("request")==req and not future.done(): future.set_result(data)
             except (ValueError,TypeError,AttributeError): pass
-        unsubscribe=await mqtt.async_subscribe(self.hass,f"{root(self.manager)}/reply/{req}",received,qos=1)
+        topic=f"{root(self.manager)}/reply/{req}"
+        unsubscribe=await mqtt.async_subscribe(self.hass,topic,received,qos=1)
+        cancel_status=None
         try:
-            await self.publish(f"{root(self.manager)}/control",json.dumps({"request":req,"op":op,**kwargs}))
-            reply=await asyncio.wait_for(future,15)
-            if reply.get("ok") is not True: raise ManagerError(f"Manager rejected {op}")
-            return reply
-        finally: unsubscribe()
+            # HA subscribes asynchronously; do not send the request before SUBACK.
+            ready=asyncio.Event()
+            monitor=getattr(mqtt,"async_on_subscribe_done",None)
+            if monitor:
+                import inspect
+                cancel_status=monitor(self.hass,topic,qos=1,on_subscribe_status=ready.set)
+                if inspect.isawaitable(cancel_status):cancel_status=await cancel_status
+                await asyncio.wait_for(ready.wait(),15)
+            payload=json.dumps({"request":req,"op":op,**kwargs})
+            for _ in range(3):
+                await self.publish(f"{root(self.manager)}/control",payload)
+                try:
+                    reply=await asyncio.wait_for(asyncio.shield(future),8)
+                    if reply.get("ok") is not True: raise ManagerError(f"Manager rejected {op}")
+                    return reply
+                except TimeoutError:continue
+            raise ManagerError(f"Manager response timeout: {op}")
+        finally:
+            if callable(cancel_status):cancel_status()
+            if not future.done():future.cancel()
+            unsubscribe()
     async def inventory(self):
         result=(await self.rpc("inventory")).get("devices",{})
         return result if isinstance(result,dict) else {}
@@ -86,11 +106,18 @@ class Manager:
         loc=record["location"]; existing=await api.rules(loc)
         for body in make_rules(record["physical"],record["proxy"],record["fields"]):
             named=[r for r in existing if r.get("name")==body["name"]]
+            recorded=record["rules"].get(body["name"])
+            if recorded and not named:
+                try:
+                    old=await api.rule(loc,uid(recorded))
+                    named=[{"id":recorded,"name":old.get("name")}]
+                except ApiError as exc:
+                    if exc.status!=404:raise
             if len(named)>1:raise ManagerError("Duplicate Rule name; cleanup required")
             if named:
                 rid=uid(named[0]["id"])
                 detail=await api.rule(loc,rid)
-                if not self.matches(detail,body):raise ManagerError("Existing Rule contents differ")
+                if detail.get("name")!=body["name"] or (recorded!=rid and not self.matches(detail,body)):raise ManagerError("Existing Rule contents differ")
             else:
                 created=await api.create_rule(loc,body)
                 rid=uid(created["id"])
@@ -165,15 +192,30 @@ class Manager:
                     proxy=record.get("proxy")
                     if proxy:
                         expected={r["name"]:r for r in make_rules(physical,proxy,record["fields"])}
+                        candidates=dict(record["rules"])
                         for item in await api.rules(record["location"]):
                             name=item.get("name")
                             if name not in expected:continue
                             rid=uid(item["id"])
-                            detail=await api.rule(record["location"],rid)
-                            if record["rules"].get(name)!=rid and not self.matches(detail,expected[name]):raise ManagerError("Rule ownership mismatch")
+                            if name in candidates and candidates[name]!=rid:raise ManagerError("Duplicate Rule; manual review needed")
+                            candidates[name]=rid
+                        # Use recorded IDs directly even if the list endpoint omits them.
+                        for name,rid in candidates.items():
+                            if name not in expected:raise ManagerError("Unknown Rule ownership")
+                            try: detail=await api.rule(record["location"],uid(rid))
+                            except ApiError as exc:
+                                if exc.status==404:continue
+                                raise
+                            if detail.get("name")!=name or (record["rules"].get(name)!=rid and not self.matches(detail,expected[name])):raise ManagerError("Rule ownership mismatch")
                             await api.delete_rule(record["location"],rid)
                         # Never delete a physical device. Only the verified proxy inventory ID.
                         if physical in inv:await api.delete_device(proxy)
+                        else:
+                            # If inventory is missing but the device still exists, refuse to guess.
+                            try: await api.device(proxy)
+                            except ApiError as exc:
+                                if exc.status!=404:raise
+                            else:raise ManagerError("Proxy not in manager inventory; manual review needed")
                     del records[physical];await self.save(data);results[physical]="Removed"
                 except Exception as exc:
                     results[physical]=str(exc) if isinstance(exc,(ManagerError,ApiError)) else type(exc).__name__

@@ -10,16 +10,16 @@
 
        powershell -ExecutionPolicy Bypass -File .\tools\deploy_manager.ps1
 
-   새 전용 채널 생성/허브 가입은 처음 한 번만. CLI 기본 채널이 이전 삭제 채널이면 config:reset으로 해당 기본값을 다시 선택하십시오. --install은 패키지/채널 할당/허브 설치를 함께 진행합니다. 삼성 서버 계정 인증/배포는 사용자가 해야 합니다.
+   전용 채널 생성/허브 가입/패키징/채널 할당/허브 설치를 한 스크립트로 처리합니다. 기존 전용 채널은 재사용하며 이전 삭제 채널의 CLI 기본값을 사용하지 않습니다. 허브가 하나면 자동 선택, 여러 개면 선택 창을 표시합니다. 삼성 서버 계정 인증/배포는 사용자가 해야 합니다.
 4. SmartThings 앱에서 주변 기기 검색 1회. **ST Local Manager** 설정에서 HA VM LAN IPv4, 1883, MQTT 계정, Enable bridge=ON 입력. 계정은 이 관리자 하나에만 입력. MQTT 암호는 TLS 없는 신뢰 LAN용 전용 계정 사용.
-5. HACS 사용자 지정 저장소에 이 저장소를 Integration으로 추가/업데이트하고 HA 재시작. 통합 추가 → ST Local Bridge → 통합 관리자 → SmartThings PAT 입력 → 관리자 선택. MQTT 연결 검증.
-6. 해당 통합 구성(Options) → 일괄 추가 → PAT 입력 → 기기 복수 선택. 실제 UUID 복사, 기기별 PowerShell 실행 불필요. Rules의 executionLocation이 Local인 경우에만 활성화. HA MQTT Discovery로 엔티티 생성.
+5. HACS 사용자 지정 저장소에 이 저장소를 Integration으로 추가/업데이트하고 HA 재시작. 통합 추가 → ST Local Bridge → 통합 관리자 → SmartThings PAT 입력 → 관리자 선택 → 기기 복수 선택. MQTT 연결 검증 및 일괄 등록.
+6. 이후 추가/삭제는 통합의 구성(Options) 메뉴 사용. 실제 UUID 복사, 기기별 PowerShell 실행 불필요. Rules의 executionLocation이 Local인 경우에만 활성화. HA MQTT Discovery로 엔티티 생성.
 
-PAT 발급: https://account.smartthings.com/tokens (기기 읽기/삭제 및 Rules 읽기/쓰기/삭제, 필요한 위치 권한). 신규 PAT는 24시간 유효. HA에 저장하지 않으며 초기 설정/추가/삭제에만 사용. 평상시 제어는 클라우드 API를 사용하지 않음. 설정 UI의 첫 조회와 일괄 추가가 별도이므로 같은 PAT를 재사용해도 됩니다.
+PAT 발급: https://account.smartthings.com/tokens (기기 읽기/삭제 및 Rules 읽기/쓰기/삭제, 필요한 위치 권한). 신규 PAT는 24시간 유효. HA에 저장하지 않으며 초기 설정/추가/삭제에만 사용. 평상시 제어는 클라우드 API를 사용하지 않음. 최초 설치 시 PAT는 한 번만 입력합니다.
 
 ## 기기 지원
 
-main 컴포넌트의 로컬 기기만 지원. switch, light 및 brightness, windowShade 및 position/stop, motion, contact, presence, water, temperature, humidity, battery, button(pushed/held/double). 안전을 위해 잠금·가스밸브·난방·차고문 등은 제외. 조명 색상, multi-component, 팬 속도는 미지원. 각 기기당 가상 프록시 1개와 Local Rules가 자동 생성되며 기존 물리 기기 드라이버는 변경하지 않음. 최대 프록시 64개, 실제 허브/Rules API 제한에 따라 더 적을 수 있음.
+main 컴포넌트의 로컬 기기만 지원. switch, light 및 brightness, windowShade 및 position/stop, motion, contact, presence, water, temperature, humidity, battery, button(pushed/held/double). 안전을 위해 잠금·가스밸브·난방·차고문 등은 제외. 조명 색상, multi-component, 팬 속도는 미지원. 각 기기당 가상 프록시 1개와 Local Rules가 자동 생성되며 기존 물리 기기 드라이버는 변경하지 않음. 10개 컴포넌트로 구성한 공통 프록시 프로필. 최대 프록시 64개, 실제 허브/Rules API 제한에 따라 더 적을 수 있음.
 
 ## 복구/삭제
 
@@ -27,7 +27,7 @@ main 컴포넌트의 로컬 기기만 지원. switch, light 및 brightness, wind
 
 ## 로컬 동작 및 한계
 
-관리자 단일 MQTT 세션, clean session, Last Will, 15초 heartbeat, 자동 재연결 1~30초, retained 제어 메시지 거부. 상태는 Rule이 보고한 물리 상태만 사용. 재연결 시 필드 availability를 offline으로 초기화하고 sync Rule을 통해 재조회한 값으로 복구. sync는 허브가 보유한 물리 기기의 마지막 capability 상태이며 물리 장치에 직접 새 측정 요청을 하지 않음. MQTT/Rules가 Local이라고 실제 장치가 살아있다는 뜻은 아님. 기존 공식 통합을 유지하며 안전한 환경에서 기기 하나로 먼저 확인. 위치·밝기·숫자 보고는 동적 RuleOperand를 사용하며 새 실기 검증 필요. 사용자 테스트 이후 Wi-Fi/LAN을 유지하고 WAN만 차단해 양방향 작동 확인.
+관리자 단일 MQTT 세션, clean session, Last Will, 15초 heartbeat, 자동 재연결 1~30초, 구독 시 재전달되는 retained 제어 메시지 거부. 상태는 Rule이 보고한 물리 상태만 사용. 재연결 시 필드 availability를 offline으로 초기화하고 sync Rule을 통해 재조회한 값으로 복구. sync는 허브가 보유한 물리 기기의 마지막 capability 상태이며 물리 장치에 직접 새 측정 요청을 하지 않음. MQTT/Rules가 Local이라고 실제 장치가 살아있다는 뜻은 아님. 기존 공식 통합을 유지하며 안전한 환경에서 기기 하나로 먼저 확인. 위치·밝기·숫자 보고는 동적 RuleOperand를 사용하며 새 실기 검증 필요. 사용자 테스트 이후 Wi-Fi/LAN을 유지하고 WAN만 차단해 양방향 작동 확인.
 
 ## 검증
 
