@@ -48,6 +48,7 @@ $utf8=[Text.UTF8Encoding]::new($false)
 [IO.File]::WriteAllText($deviceFile,(ConvertTo-Json -InputObject @($ds) -Depth 40),$utf8)
 [IO.File]::WriteAllText($driverFile,(ConvertTo-Json -InputObject @($dr) -Depth 40),$utf8)
 $customArgs=@()
+if (-not $Custom -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot "custom.local.json"))){$Custom=Join-Path $PSScriptRoot "custom.local.json"}
 if ($Custom){$customArgs=@('--custom',(Resolve-Path -LiteralPath $Custom).Path)}
 & $exe @pyArgs (Join-Path $PSScriptRoot 'inventory.py') --devices $deviceFile --drivers $driverFile --out $planFile @customArgs
 if ($LASTEXITCODE -ne 0){throw 'Inventory classification failed'}

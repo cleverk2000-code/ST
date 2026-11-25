@@ -29,3 +29,14 @@ inventory는 CLI의 현재 기기 및 설치 드라이버 정보를 읽어 분�
 모든 설치 드라이버의 소스/원격 기기 접근은 SDK에서 제공하지 않습니다. 공개 소스 검색은 이름만으로 안전하게 자동 확정할 수 없습니다. 직접 MQTT는 수정된 드라이버가 담당하는 기기만 동작하며 원본 기본 드라이버 자체를 자동 패치하지 않습니다. 원본 라이선스/NOTICE 포함. 자동 빌드 검증은 삼성 허브 실기 검증과 다릅니다.
 
 기존 HA 엔티티 ID의 계열 간 유지, 공통 MQTT 암호 1회 등록, 비공개 드라이버의 자동 Rules 전환, 제조사 임의 custom capability 자동 생성은 미구현입니다. 원본 드라이버 변경/재페어링 시 기존 SmartThings 자동화에 영향 가능. 클라우드 API 없이 전체 기기/드라이버를 지속적으로 검색하는 것은 지원되지 않습니다.
+
+## 미래 타사 드라이버 등록 자동화
+
+원본 GitHub 주소와 드라이버 디렉터리만 알면 커밋·파일 해시·라이선스·패키지 식별자를 자동 조회하고 등록할 수 있습니다.
+
+    py -3 universal/register.py --search "driver name"
+    py -3 universal/register.py --repo OWNER/REPO
+    py -3 universal/register.py --repo OWNER/REPO --package path/to/driver
+    py -3 universal/register.py --repo OWNER/REPO --package path/to/driver --approve
+
+검색 결과는 후보일 뿐 동일 드라이버임을 보장하지 않습니다. --approve 전 원본 코드/라이선스를 검토하세요. 등록 정보는 custom.local.json에 로컬 저장됩니다. deploy.ps1은 이 파일을 자동 읽고 현재 설치 드라이버 이름과 일치하는 검토된 소스만 변환합니다. 설치는 별도 -Install 승인 후 진행됩니다. 공개 소스가 갱신됐는지 확인: `py -3 universal/register.py --check-updates`. 새 리비전은 검토 후 명시적으로 다시 등록해야 하며 자동 병합·자동 업로드하지 않습니다.

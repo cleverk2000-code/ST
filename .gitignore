@@ -1,0 +1,5 @@
+
+# Local SmartThings inventory and reviewed source registry
+universal/.cache/
+universal/custom.local.json
+universal/build-*
