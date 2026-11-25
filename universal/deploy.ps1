@@ -54,7 +54,7 @@ if (-not $Custom -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot "custom.l
 if ($Custom){$customArgs=@('--custom',(Resolve-Path -LiteralPath $Custom).Path)}
 & $exe @pyArgs (Join-Path $PSScriptRoot 'inventory.py') --devices $deviceFile --drivers $driverFile --out $planFile @customArgs
 if ($LASTEXITCODE -ne 0){throw 'Inventory classification failed'}
-$plan=@(Get-Content -LiteralPath $planFile -Encoding UTF8 -Raw | ConvertFrom-Json)
+$plan=ConvertFrom-Json -InputObject (Get-Content -LiteralPath $planFile -Encoding UTF8 -Raw)
 $plan | Format-Table label,driver,method,package -AutoSize
 Write-Host "Plan: $planFile"
 if ($PlanOnly){return}
@@ -74,7 +74,7 @@ if ($LASTEXITCODE -ne 0){throw 'Build failed; no driver uploaded'}
 & $exe @pyArgs (Join-Path $PSScriptRoot 'repair_profiles.py') $out --check
 if ($LASTEXITCODE -ne 0){throw 'Profile validation failed; no upload'}
 if (-not $Install){Write-Host "Build only: $out";return}
-$manifest=@(Get-Content -LiteralPath (Join-Path $out 'manifest.json') -Raw | ConvertFrom-Json)
+$manifest=ConvertFrom-Json -InputObject (Get-Content -LiteralPath (Join-Path $out 'manifest.json') -Raw -Encoding UTF8)
 $manifest | Format-Table family,adapter -AutoSize
 if ((Read-Host 'Install these packages without changing existing device drivers? (y/N)') -ne 'y'){return}
 if ($ChannelId -eq [guid]::Empty){

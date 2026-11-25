@@ -18,6 +18,8 @@ jobs:
       - run: python -m unittest discover -s direct/tests -p test_build.py -v
       - run: ./universal/tests/test_deploy.ps1
         shell: pwsh
+      - run: ./universal/tests/test_resume.ps1
+        shell: pwsh
       - run: sudo apt-get update && sudo apt-get install -y lua5.3
       - run: lua5.3 direct/tests/test_model.lua && lua5.3 direct/tests/test_runtime.lua
       - run: python universal/build.py --all-official --wonjj ef00-covers-2-wonjj6768 ef00-presence-general-2-wonjj6768 zcl-plugs-wonjj6768 zcl-sensors-wonjj6768 --out /tmp/st-universal
@@ -27,3 +29,15 @@ jobs:
         with:
           name: st-universal-official-wonjj
           path: /tmp/st-universal
+  windows-powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install PyYAML
+      - run: .\universal\tests\test_deploy.ps1
+        shell: powershell
+      - run: .\universal\tests\test_resume.ps1
+        shell: powershell

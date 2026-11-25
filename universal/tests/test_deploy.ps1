@@ -1,6 +1,6 @@
 $ErrorActionPreference='Stop'
 $tokens=$null;$errors=$null
-foreach($p in @('universal/deploy.ps1','direct/deploy.ps1')){
+foreach($p in @('universal/deploy.ps1','direct/deploy.ps1','universal/resume_install.ps1')){
  $ast=[System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $p).Path,[ref]$tokens,[ref]$errors)
  if($errors.Count){throw ($errors | Out-String)}
 }
@@ -12,6 +12,6 @@ function global:smartthings {
 }
 & ./universal/deploy.ps1 -PlanOnly -HubId 4bea0363-9f70-41fc-873e-79abc1a614b7
 $latest=Get-ChildItem ./universal/build-*-plan.json | Sort-Object LastWriteTime -Descending | Select-Object -First 1
-$plan=@(Get-Content $latest.FullName -Raw | ConvertFrom-Json)
+$plan=ConvertFrom-Json -InputObject (Get-Content $latest.FullName -Raw)
 if($plan.Count -ne 1 -or $plan[0].method -ne 'rules_or_review'){throw 'Invalid null inventory plan'}
 Write-Host 'PowerShell null inventory regression passed'
