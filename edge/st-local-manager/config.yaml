@@ -1,0 +1,7 @@
+name: ST Local Manager
+packageKey: cleverk2000.st-local-manager
+description: SmartThings local MQTT manager for Home Assistant
+vendorSupportInformation: https://github.com/cleverk2000-code/ST
+permissions:
+  lan: {}
+  discovery: {}

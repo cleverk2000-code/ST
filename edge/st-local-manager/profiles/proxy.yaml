@@ -1,0 +1,116 @@
+name: proxy
+components:
+  - id: main
+    capabilities:
+      - id: refresh
+        version: 1
+    categories:
+      - name: RemoteController
+  - id: commandOn
+    capabilities:
+      - id: button
+        version: 1
+    categories:
+      - name: RemoteController
+  - id: commandOff
+    capabilities:
+      - id: button
+        version: 1
+    categories:
+      - name: RemoteController
+  - id: commandStop
+    capabilities:
+      - id: button
+        version: 1
+    categories:
+      - name: RemoteController
+  - id: sync
+    capabilities:
+      - id: button
+        version: 1
+    categories:
+      - name: RemoteController
+  - id: switchReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: shadeReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: levelReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: positionReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: motionReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: contactReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: presenceReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: waterReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: humidityReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: batteryReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: buttonReport
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: commandLevel
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: commandPosition
+    capabilities:
+      - id: switchLevel
+        version: 1
+    categories:
+      - name: Switch
+  - id: temperatureReport
+    capabilities:
+      - id: thermostatHeatingSetpoint
+        version: 1
+    categories:
+      - name: Thermostat

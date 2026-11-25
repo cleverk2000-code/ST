@@ -1,7 +1,7 @@
 {
   "domain": "st_local_bridge",
   "name": "ST Local Bridge",
-  "version": "0.3.0",
+  "version": "1.0.0-rc.1",
   "config_flow": true,
   "dependencies": [
     "mqtt"

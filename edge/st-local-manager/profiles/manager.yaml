@@ -1,0 +1,51 @@
+name: manager
+components:
+  - id: main
+    capabilities:
+      - id: refresh
+        version: 1
+    categories:
+      - name: NetworkAudio
+preferences:
+  - name: brokerIp
+    title: Broker IPv4
+    description: HA VM LAN IPv4 address
+    required: true
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 7
+      maxLength: 15
+      default: "192.168.0.19"
+  - name: brokerPort
+    title: Broker port
+    required: true
+    preferenceType: integer
+    definition:
+      minimum: 1
+      maximum: 65535
+      default: 1883
+  - name: mqttUser
+    title: MQTT username
+    required: false
+    preferenceType: string
+    definition:
+      stringType: text
+      minLength: 0
+      maxLength: 64
+      default: ""
+  - name: mqttPassword
+    title: MQTT password
+    required: false
+    preferenceType: string
+    definition:
+      stringType: password
+      minLength: 0
+      maxLength: 128
+      default: ""
+  - name: enabled
+    title: Enable bridge
+    required: true
+    preferenceType: boolean
+    definition:
+      default: false

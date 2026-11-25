@@ -2,22 +2,85 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add SmartThings local device",
-        "description": "Enter the physical device UUID from SmartThings Advanced. Configure Edge and Rules first.",
+        "title": "ST Local Bridge setup",
+        "menu_options": {
+          "manager": "Manager (recommended)",
+          "legacy": "Legacy manual bridge"
+        }
+      },
+      "manager": {
+        "title": "SmartThings setup authentication",
+        "description": "PAT used for setup only; not stored.",
         "data": {
-          "name": "Device name",
-          "device_id": "Physical device UUID",
-          "kind": "Device type",
-          "native_edge": "Native ST Local Edge (connection monitoring)"
+          "token": "Personal Access Token"
+        }
+      },
+      "choose_manager": {
+        "title": "Select manager",
+        "data": {
+          "manager": "Manager"
+        }
+      },
+      "legacy": {
+        "title": "Legacy device",
+        "data": {
+          "name": "Name",
+          "device_id": "Device UUID",
+          "kind": "Kind",
+          "native_edge": "Native Edge"
         }
       }
     },
     "error": {
-      "invalid_uuid": "Enter a valid UUID.",
-      "invalid_name": "Enter a name."
+      "no_manager": "No ST Local Manager found.",
+      "cannot_connect": "API authentication or MQTT manager connection failed",
+      "invalid_uuid": "Invalid UUID",
+      "invalid_name": "Invalid name"
     },
     "abort": {
-      "already_configured": "This device is already configured."
+      "already_configured": "Already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage devices",
+        "menu_options": {
+          "add": "Add devices / retry failed",
+          "remove": "Remove devices and Rules",
+          "sync": "Resync states"
+        }
+      },
+      "token": {
+        "title": "Setup SmartThings PAT",
+        "description": "Token is not stored. Renew if expired.",
+        "data": {
+          "token": "Personal Access Token"
+        }
+      },
+      "select": {
+        "title": "Select devices",
+        "data": {
+          "devices": "Devices (multiple)"
+        }
+      },
+      "progress": {
+        "title": "Configuring local bridge"
+      },
+      "result": {
+        "title": "Result",
+        "description": "{result}"
+      }
+    },
+    "error": {
+      "cannot_connect": "SmartThings or MQTT connection failed"
+    },
+    "abort": {
+      "no_devices": "No eligible devices.",
+      "manager_unreachable": "Manager unreachable"
+    },
+    "progress": {
+      "provisioning": "Configuring proxies and Local Rules"
     }
   }
 }
