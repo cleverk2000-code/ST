@@ -1,0 +1,21 @@
+name: ST Manager addon checks
+on:
+  push:
+    paths: ['st_universal_manager/**','repository.yaml','.github/workflows/addon.yml']
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install PyYAML Flask
+      - run: python -m unittest discover -s st_universal_manager/tests -v
+      - run: docker build -t st-universal-manager-test st_universal_manager
+      - run: docker run --rm st-universal-manager-test smartthings --version
+      - run: docker run -d --name st-manager-test -e ST_TEST=1 -p 127.0.0.1:8099:8099 st-universal-manager-test
+      - run: curl --retry 10 --retry-connrefused --fail http://127.0.0.1:8099/ | grep 'ST Universal Manager'
+      - if: always()
+        run: docker rm -f st-manager-test || true
