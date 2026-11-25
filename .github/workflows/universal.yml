@@ -37,6 +37,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install PyYAML
+      - run: py -3 -m pip install PyYAML
       - run: .\universal\tests\test_deploy.ps1
         shell: powershell
       - run: .\universal\tests\test_resume.ps1
