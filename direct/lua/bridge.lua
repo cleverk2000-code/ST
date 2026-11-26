@@ -24,13 +24,19 @@ local function same(a,b)
  return a.host==b.host and a.port==b.port and a.user==b.user and a.password==b.password and a.site==b.site
 end
 local function exported(d) return (d.preferences or {}).stMqttExport~=false end
-local function child(d) return type(d.parent_assigned_child_key)=="string" end
 local function caps_of(comp)
  local caps={}
  for k,v in pairs(comp.capabilities or {}) do
   if type(v)=="table" and v.id then caps[v.id]=true elseif type(k)=="string" then caps[k]=true end
  end
  return caps
+end
+local function trackable(s,d)
+ if not model.safe_token(d.id) then return false end
+ if type(d.parent_assigned_child_key)~="string" then return true end
+ -- Official switch subdrivers can expose a separate child device for each gang.
+ local main=d.profile and d.profile.components and d.profile.components.main
+ return s.inject and s.family=="st-zigbee-switch" and main and caps_of(main).switch
 end
 local function category(comp)
  for _,c in pairs(comp.categories or {}) do if type(c)=="table" and c.name then return c.name elseif type(c)=="string" then return c end end
@@ -50,7 +56,7 @@ local function describe(s,c,d,rec)
   local id=comp.id or key
   if model.safe_token(id) then
    local caps=caps_of(comp)
-   local entities=model.describe(c.prefix,d.id,id,d.label or d.name or d.id,d:get_manufacturer(),d:get_model(),caps,s.handlers,rec.hook,category(comp) or (s.family:find("lights",1,true) and "Light" or s.family:find("plugs",1,true) and "SmartPlug" or nil))
+   local entities=model.describe(c.prefix,d.id,id,d.label or d.name or d.id,type(d.get_manufacturer)=="function" and d:get_manufacturer() or nil,type(d.get_model)=="function" and d:get_model() or nil,caps,s.handlers,rec.hook,category(comp) or (s.family:find("lights",1,true) and "Light" or s.family:find("plugs",1,true) and "SmartPlug" or nil))
    if entities.shade then
     local allowed=d:get_latest_state(id,"windowShade","supportedWindowShadeCommands")
     if type(allowed)=="table" and #allowed>0 then
@@ -140,7 +146,10 @@ local function refresh(s,c,d,rec,rebuild)
   if rec.snapshot_pending==epoch then rec.snapshot_pending=nil end
   if not current(s,c) or c.epoch~=epoch or s.devices[d.id]~=rec then return end
   protected(function()
-   if rec.rebuild_epoch==epoch then rec.rebuild_epoch=nil;register(s,c,d,rec) end
+   if rec.rebuild_epoch==epoch then
+    register(s,c,d,rec)
+    rec.rebuild_epoch=nil
+   end
    snapshot(s,c,d,rec)
    if exported(d) and next(rec.entities) then put(c,c.prefix.."/"..d.id.."/available","online") end
   end)
@@ -353,7 +362,7 @@ local function reconfigure(s)
  end,"st-direct-mqtt")
 end
 local function track(s,driver,d)
- if child(d) or not model.safe_token(d.id) then return end
+ if not trackable(s,d) then return end
  s.driver=driver
  local rec=s.devices[d.id]
  if not rec or rec.device~=d then
@@ -427,7 +436,7 @@ function M.attach(driver,family)
   if type(list)~="table" then return end
   local seen={}
   for _,d in ipairs(list) do
-   if not child(d) and model.safe_token(d.id) then
+   if trackable(s,d) then
     seen[d.id]=true;s.missing[d.id]=nil
     local rec=s.devices[d.id];local sig=signature(d)
     if not rec or rec.device~=d or rec.signature~=sig then

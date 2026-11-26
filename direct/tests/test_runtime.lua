@@ -182,3 +182,24 @@ cmd(sdkroot.."/sdk-device/main/cmd/switch","OFF");drain(sdkdev);assert(#injected
 scheduled();assert(sdkstate.devices["sdk-device"]==nil)
 pump(15)
 print("official SDK adapter simulation passed")
+
+-- A gang represented as an Edge child owns its own main switch and MQTT identity.
+local gang=device("gang-two",false,{main=component("main",{"switch"})})
+gang.parent_assigned_child_key="02"
+gang.get_model=nil
+gang.get_manufacturer=nil
+gang:emit_event(event("switch","switch","off"))
+sdklist={sdkdev,gang}
+local childstate=bridge.attach(sdk,"st-zigbee-switch")
+scheduled();pump(8);drain(gang);drain(sdkdev);pump(8)
+assert(childstate.devices[gang.id])
+local discovery="homeassistant/switch/std_st-direct_home_st-zigbee-switch_gang-two_main_switch/config"
+assert(count(discovery)>0)
+local gangbase="st-direct/home/st-zigbee-switch/gang-two/main"
+assert(count(gangbase.."/state/switch","OFF")>0)
+cmd(gangbase.."/cmd/switch","ON");drain(gang);pump(8)
+assert(injected[#injected].id==gang.id and injected[#injected].command=="on")
+gang.preferences.stMqttExport=false
+scheduled();drain(gang);pump(8)
+assert(count(discovery,"")>0)
+print("switch child discovery and command routing passed")
