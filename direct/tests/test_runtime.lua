@@ -77,6 +77,7 @@ local function device(id,master,components)
   return e
  end
  function d:emit_event(e)return self:emit_component_event(self.profile.components.main,e)end
+ function d:extend_device(name,fn) self[name]=fn end
  return d
 end
 local function component(id,caps)
@@ -203,3 +204,30 @@ gang.preferences.stMqttExport=false
 scheduled();drain(gang);pump(8)
 assert(count(discovery,"")>0)
 print("switch child discovery and command routing passed")
+
+-- Match the SDK's read-only device and main emitter that returns no event.
+local presence=device("hall-presence",false,{main=component("main",{"presenceSensor"})})
+local overrides={}
+function presence:extend_device(name,fn) overrides[name]=fn end
+local proxy=setmetatable({},{
+ __index=function(_,key)return overrides[key] or presence[key] end,
+ __newindex=function()error("read-only device")end
+})
+function presence:emit_event(e) self:emit_component_event(self.profile.components.main,e) end
+-- Store updates go to the SDK's writable cache; the device itself stays read-only.
+function presence:emit_component_event(comp,e)
+ e.component_id=comp.id
+ self.states[comp.id.."/"..e.capability_id.."/"..e.attribute_id]=e.state
+ return e
+end
+sdklist={sdkdev,proxy}
+scheduled();drain(proxy);pump(8)
+local pt="st-direct/home/st-zigbee-switch/hall-presence/main/state/presence"
+local start=now
+proxy:emit_event(event("presenceSensor","presence","present"))
+pump(8)
+assert(now-start<30 and count(pt,"ON")==1,"presence must be published before snapshot")
+proxy:emit_event(event("presenceSensor","presence","not present"))
+pump(8)
+assert(count(pt,"OFF")==1,"clear must be published without a snapshot")
+print("read-only SDK immediate presence events passed")

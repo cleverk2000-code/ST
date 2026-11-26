@@ -157,36 +157,24 @@ local function refresh(s,c,d,rec,rebuild)
  if not ok and rec.snapshot_pending==epoch then rec.snapshot_pending=nil end
 end
 local function hook_device(s,d,rec)
- -- Hook only this device instance; preserve original results/errors. Nested emit_event -> emit_component_event is counted once.
- local old_main,old_component=d.emit_event,d.emit_component_event
- if type(old_main)~="function" or type(old_component)~="function" then return false end
- local depth=0
- local function wrap(original,component_form)
-  return function(self,...)
-   local argv=table.pack(...)
-   depth=depth+1
-   local result=table.pack(pcall(original,self,table.unpack(argv,1,argv.n)))
-   depth=depth-1
-   if not result[1] then error(result[2],0) end
-   if depth==0 then protected(function()
+ -- The SDK routes main and component events through this method. Device objects
+ -- are read-only; extend_device installs the override on this instance.
+ local original=d.emit_component_event
+ if type(original)~="function" or type(d.extend_device)~="function" then return false end
+ local function emit(self,...)
+  local result=table.pack(original(self,...))
+  local event=result[1]
+  if type(event)=="table" and type(event.state)=="table" then
+   protected(function()
     local c=s.session
-    if not c or not current(s,c) then return end
-    local fallback=component_form and argv[2] or argv[1]
-    local ev=type(result[2])=="table" and result[2] or fallback
-    if type(ev)~="table" then return end
-    local comp=ev.component_id or (component_form and type(argv[1])=="table" and argv[1].id) or "main"
-    local state=ev.state
-    if type(state)~="table" or state.value==nil then return end
-    update_state(s,c,d,rec,comp,ev.capability_id,ev.attribute_id,state.value,state.unit)
-   end) end
-   return table.unpack(result,2,result.n)
+    if c and current(s,c) then
+     update_state(s,c,d,rec,event.component_id,event.capability_id,event.attribute_id,event.state.value,event.state.unit)
+    end
+   end)
   end
+  return table.unpack(result,1,result.n)
  end
- local ok=pcall(function()
-  d.emit_component_event=wrap(old_component,true);d.emit_event=wrap(old_main,false)
- end)
- if not ok then pcall(function() d.emit_component_event=old_component;d.emit_event=old_main end) end
- return ok
+ return pcall(d.extend_device,d,"emit_component_event",emit)
 end
 local function incoming(s,c,t,payload,retained)
  if retained or not current(s,c) then return end
