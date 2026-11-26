@@ -45,6 +45,7 @@ function M.numeric(field,v,unit)
   elseif field=="power" and unit=="kW" then v=v*1000
   elseif field=="current" and unit=="mA" then v=v/1000
   elseif field=="voltage" and unit=="mV" then v=v/1000
+  elseif field=="illuminance" and (unit=="lux" or unit=="LUX") then -- same SI unit as lx
   else return nil end
  end
  return M.num(v,(field=="power" or field=="current") and -1e9 or 0,(field=="humidity" or field=="battery") and 100 or 1e12)
