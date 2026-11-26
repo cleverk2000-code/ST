@@ -158,11 +158,11 @@ print("direct runtime simulation passed")
 local sdkdev=device("sdk-device",true,{main=component("main",{"switch","powerMeter"})})
 sdkdev:emit_event(event("switch","switch","off"))
 local sdklist={sdkdev}
-local scheduled
+local scheduled,power_tick
 local injected={}
 local sdk={}
 function sdk:get_devices()return sdklist end
-function sdk:call_on_schedule(interval,cb)assert(interval==3);scheduled=cb end
+function sdk:call_on_schedule(interval,cb) if interval==3 then scheduled=cb elseif interval==10 then power_tick=cb else error("unexpected interval") end end
 function sdk:inject_capability_command(d,c)injected[#injected+1]={id=d.id,command=c.command,component=c.component,args=c.named_args}end
 local sdkstate=bridge.attach(sdk,"st-test")
 assert(scheduled and next(sdkstate.devices)==nil)
@@ -231,3 +231,43 @@ proxy:emit_event(event("presenceSensor","presence","not present"))
 pump(8)
 assert(count(pt,"OFF")==1,"clear must be published without a snapshot")
 print("read-only SDK immediate presence events passed")
+
+-- TS011F read requests must not depend on MQTT, relay state, or cached wattage.
+local reads={}
+package.preload["st.zigbee.zcl.clusters"]=function()
+ return {ElectricalMeasurement={ID=0x0B04,attributes={ActivePower={read=function(_,d)return {id=d.id,attribute=0x050B}end}}}}
+end
+local function plug(id,mfr,cap)
+ local d=device(id,false,{main=component("main",cap or {"switch","powerMeter"})})
+ function d:get_manufacturer()return mfr end
+ function d:get_model()return "TS011F" end
+ function d:supports_server_cluster(id)return id==0x0B04 end
+ function d:send_to_component(c,msg)
+  assert(c=="main" and msg.attribute==0x050B and msg.id==self.id)
+  reads[#reads+1]=self.id
+ end
+ d:emit_event(event("switch","switch","on"))
+ d:emit_event(event("powerMeter","power",973,"W"))
+ return d
+end
+local target=plug("poll-plug","_TZ3000_5f43h46b")
+local other=plug("other-plug","_TZ3000_other")
+local nocap=plug("no-power","_TZ3000_5f43h46b",{"switch"})
+sdklist={target,other,nocap,sdkdev}
+local pollstate=bridge.attach(sdk,"st-zigbee-switch")
+assert(power_tick)
+scheduled();power_tick();power_tick()
+drain(target);drain(other);drain(nocap);drain(sdkdev)
+assert(#reads==1 and reads[1]==target.id,"initial read coalesced; unrelated plugs excluded")
+power_tick();drain(target)
+assert(#reads==2,"periodic physical read")
+target:emit_event(event("powerMeter","power",0,"W"))
+target:emit_event(event("switch","switch","off"))
+power_tick();drain(target)
+assert(#reads==3,"polling continues with relay off")
+power_tick()
+sdklist={other,nocap,sdkdev};scheduled();drain(target)
+assert(#reads==3,"queued read cancelled on missing device")
+power_tick();scheduled();power_tick();drain(target)
+assert(#reads==3 and not pollstate.devices[target.id],"removed device not polled")
+print("TS011F targeted physical polling simulation passed")
