@@ -1,3 +1,7 @@
+## 0.1.3
+- Poll active power every 10 seconds for the TS011F / _TZ3000_5f43h46b variant on the official Zigbee switch driver, without changing relay state.
+- Accept lux/LUX illuminance units and expand sensor zero-value and polling regression coverage.
+
 ## 0.1.2
 - Forward capability reports immediately through the SmartThings device extension API.
 
