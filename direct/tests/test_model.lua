@@ -30,3 +30,13 @@ local b=m.describe("st-direct/home/sensor","abc","main","Button","maker","model"
 assert(not b.button)
 assert(m.describe("st-direct/home/sensor","abc","main","Button","maker","model",{button=true},h,true).button)
 print("direct model contract passed")
+
+-- All exported measurement capabilities preserve zero rather than dropping it.
+for field,spec in pairs(m.sensors) do assert(m.state(field,0,spec[4])=="0",field) end
+assert(tonumber(m.state("illuminance",0,"lux"))==0)
+assert(tonumber(m.state("illuminance",42,"LUX"))==42)
+assert(m.state("illuminance",42,"bad")==nil)
+assert(m.state("motion","inactive")=="OFF")
+assert(m.state("contact","closed")=="OFF")
+assert(m.state("presence","not present")=="OFF")
+assert(m.state("water","dry")=="OFF")

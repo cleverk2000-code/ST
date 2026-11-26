@@ -396,6 +396,29 @@ function M.wrap(template,family)
  end
  return s
 end
+-- TS011F polling variant: cached snapshots cannot replace a physical ZCL read.
+-- Keep this narrow: other TS011F variants and sleeping sensors may report normally.
+local function poll_power(s,d,rec)
+ if s.family~="st-zigbee-switch" or not rec or rec.power_pending or s.missing[d.id] then return end
+ if type(d.parent_assigned_child_key)=="string" or type(d.get_manufacturer)~="function" or type(d.get_model)~="function" then return end
+ if d:get_model()~="TS011F" or d:get_manufacturer()~="_TZ3000_5f43h46b" then return end
+ local main=d.profile and d.profile.components and d.profile.components.main
+ if not main or not caps_of(main).powerMeter then return end
+ rec.power_pending=true
+ local ok=pcall(function()
+  d.thread:queue_event(function()
+   rec.power_pending=nil
+   if s.devices[d.id]~=rec or s.missing[d.id] then return end
+   protected(function()
+    local em=require("st.zigbee.zcl.clusters").ElectricalMeasurement
+    if d:supports_server_cluster(em.ID) then
+     d:send_to_component("main",em.attributes.ActivePower:read(d))
+    end
+   end)
+  end)
+ end)
+ if not ok then rec.power_pending=nil end
+end
 -- SDK adapter deliberately does not replace lifecycle handlers or default/subdriver dispatch.
 -- Poll only the local driver inventory; no cloud API. Missing devices are removed after two complete scans.
 function M.attach(driver,family)
@@ -428,8 +451,12 @@ function M.attach(driver,family)
     seen[d.id]=true;s.missing[d.id]=nil
     local rec=s.devices[d.id];local sig=signature(d)
     if not rec or rec.device~=d or rec.signature~=sig then
+     local first=not rec or rec.device~=d
      track(s,driver,d)
-     if s.devices[d.id] then s.devices[d.id].signature=sig end
+     if s.devices[d.id] then
+      s.devices[d.id].signature=sig
+      if first then protected(poll_power,s,d,s.devices[d.id]) end
+     end
     end
    end
   end
@@ -444,6 +471,11 @@ function M.attach(driver,family)
   reconfigure(s)
  end
  driver:call_on_schedule(3,function() protected(scan) end,"st-direct-inventory")
+ if family=="st-zigbee-switch" then
+  driver:call_on_schedule(10,function()
+   for _,rec in pairs(s.devices) do protected(poll_power,s,rec.device,rec) end
+  end,"st-direct-ts011f-power")
+ end
  return s
 end
 return M
