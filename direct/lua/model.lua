@@ -135,7 +135,10 @@ function M.describe(prefix,id,component,label,manufacturer,model,caps,handlers,h
   if caps[b[1]] then add(field,"binary_sensor",{state_topic=base.."/state/"..field,device_class=b[3],payload_on="ON",payload_off="OFF"},{[field]={b[1],b[2]}},nil,field) end
  end
  if caps.stRadarDiagnostic then
-  add("radar_dp","sensor",{state_topic=base.."/state/radar_dp",entity_category="diagnostic",icon="mdi:radar"},nil,nil,"Radar DP report")
+  add("radar_dp","sensor",{state_topic=base.."/state/radar_dp",json_attributes_topic=base.."/state/radar_dp_attributes",entity_category="diagnostic",icon="mdi:radar"},nil,nil,"Radar DP report")
+ end
+ if caps.stRadarQuery then
+  add("radar_query","button",{command_topic=base.."/cmd/radar_query",payload_press="PRESS",retain=false,entity_category="diagnostic",icon="mdi:refresh"},nil,{radar_query=true},"Radar query all DP")
  end
  if caps.button and hook then
   add("button","event",{state_topic=base.."/state/button",event_types=M.button_types,device_class="button"},nil,nil,"Button")
