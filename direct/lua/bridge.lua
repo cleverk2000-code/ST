@@ -50,12 +50,59 @@ local function put(c,t,v,retain)
  if c and c.ready then c.pending[t]={value=v,retain=retain~=false} end
 end
 local function current(s,c) return s.session==c and c.ready and not c.cancel and not c.stopping end
+-- Read-only diagnostics for the two exact HOBEIAN TS0601 fingerprints.
+-- These models have no documented measured-distance DP. Never label raw data as metres.
+local radar_known={
+ ["_TZE200_rhgsbacq"]={[1]=true,[2]=true,[101]=true,[102]=true,[104]=true,[105]=true,[106]=true,[107]=true,[108]=true,[109]=true,[110]=true,[111]=true},
+ ["_TZE200_y8jijhba"]={[1]=true,[2]=true,[102]=true,[106]=true,[107]=true,[108]=true,[110]=true},
+}
+local radar_commands={[1]=true,[2]=true,[5]=true,[6]=true}
+local function radar_mapping(d)
+ if type(d.get_model)~="function" or type(d.get_manufacturer)~="function" or d:get_model()~="TS0601" then return nil end
+ return radar_known[d:get_manufacturer()]
+end
+local function radar_report(s,d,rx)
+ local known=radar_mapping(d)
+ if not known then return end
+ local body=rx and rx.body
+ local cmd=body and body.zcl_header and body.zcl_header.cmd
+ if not cmd or not radar_commands[cmd.value] then return end
+ local raw=body.zcl_body and body.zcl_body.body_bytes
+ -- Tuya report: two status/transaction bytes, then ID/type/big-endian length/value.
+ if type(raw)~="string" or #raw<6 or #raw>1024 then return end
+ local entries={}
+ local i=3
+ while i<=#raw do
+  if i+3>#raw then return end
+  local dp,dt,hi,lo=raw:byte(i,i+3)
+  local len=hi*256+lo
+  if i+3+len>#raw then return end
+  local hex=raw:sub(i+4,i+3+len):gsub(".",function(x)return string.format("%02X",x:byte())end)
+  entries[#entries+1]=string.format("DP%d/type%d=%s%s",dp,dt,hex,known[dp] and "" or " (unknown)")
+  i=i+4+len
+ end
+ if #entries==0 then return end
+ local report=table.concat(entries,"; ")
+ log.info("ST Direct radar DP "..d.id..": "..report)
+ local rec=s.devices[d.id]
+ if not rec or rec.device~=d or not exported(d) then return end
+ rec.radar_state=#report<=255 and report or report:sub(1,252).."..."
+ local c=s.session
+ if c and current(s,c) then
+  for _,e in pairs(rec.entities or {}) do
+   if e.component=="main" and e.config.state_topic==e.base.."/state/radar_dp" then
+    put(c,e.config.state_topic,rec.radar_state)
+   end
+  end
+ end
+end
 local function describe(s,c,d,rec)
  local out={}
  for key,comp in pairs(d.profile.components or {}) do
   local id=comp.id or key
   if model.safe_token(id) then
    local caps=caps_of(comp)
+   if id=="main" and s.radar_capture and radar_mapping(d) then caps.stRadarDiagnostic=true end
    local entities=model.describe(c.prefix,d.id,id,d.label or d.name or d.id,type(d.get_manufacturer)=="function" and d:get_manufacturer() or nil,type(d.get_model)=="function" and d:get_model() or nil,caps,s.handlers,rec.hook,category(comp) or (s.family:find("lights",1,true) and "Light" or s.family:find("plugs",1,true) and "SmartPlug" or nil))
    if entities.shade then
     local allowed=d:get_latest_state(id,"windowShade","supportedWindowShadeCommands")
@@ -98,6 +145,9 @@ local function register(s,c,d,rec)
  for t,e in pairs(next_entities) do
   if s.tombstones[c.prefix] then s.tombstones[c.prefix][t]=nil end
   put(c,t,json.encode(e.config))
+  if e.config.state_topic==e.base.."/state/radar_dp" then
+   put(c,e.config.state_topic,rec.radar_state or "No report received")
+  end
  end
  local topics={};for t in pairs(next_entities) do topics[#topics+1]=t end;table.sort(topics)
  local prior=d:get_field("st_direct_discovery")
@@ -379,6 +429,21 @@ end
 function M.wrap(template,family)
  assert(model.safe_token(family))
  local s={family=family,handlers=template.capability_handlers,devices={},tombstones={},generation=0}
+ -- Existing EF00 handlers remain authoritative; only inspect incoming reports.
+ local cluster=template.zigbee_handlers and template.zigbee_handlers.cluster
+ local ef00=cluster and cluster[0xEF00]
+ if type(ef00)=="table" then
+  for cmd in pairs(radar_commands) do
+   local original=ef00[cmd]
+   if type(original)=="function" then
+    ef00[cmd]=function(driver,d,rx,...)
+     protected(radar_report,s,d,rx)
+     return original(driver,d,rx,...)
+    end
+    s.radar_capture=true
+   end
+  end
+ end
  local life=template.lifecycle_handlers or {};template.lifecycle_handlers=life
  for _,name in ipairs({"init","added","driverSwitched","infoChanged"}) do
   local original=life[name]
@@ -433,6 +498,21 @@ function M.attach(driver,family)
   supported[cap]={};for _,name in ipairs(names) do supported[cap][name]=noop end
  end
  local s={family=family,handlers=supported,devices={},tombstones={},generation=0,inject=true,driver=driver,missing={},scan_busy=false}
+ -- The SDK adapter may expose a dispatcher before run(). If it does not,
+ -- keep the existing driver untouched and do not advertise the diagnostic.
+ local dispatcher=driver.zigbee_message_dispatcher
+ if dispatcher and type(dispatcher.dispatch)=="function" then
+  local original=dispatcher.dispatch
+  s.radar_capture=pcall(function()
+   dispatcher.dispatch=function(self,drv,d,rx,...)
+    protected(function()
+     local cluster=rx and rx.address_header and rx.address_header.cluster
+     if cluster and cluster.value==0xEF00 then radar_report(s,d,rx) end
+    end)
+    return original(self,drv,d,rx,...)
+   end
+  end)
+ end
  local function signature(d)
   local p=d.preferences or {};local keys={}
   for k,comp in pairs(d.profile.components or {}) do

@@ -56,3 +56,7 @@ HA에서는 MQTT 통합만 활성화하면 됩니다. Rules, 가상 브리지, P
 원본 MIT 라이선스는 생성 패키지에 LICENSE.upstream으로 포함합니다. 원본 프로젝트 및 Zigbee2MQTT/zigbee-herdsman-converters의 기여를 명시합니다. 신규 MQTT 모듈은 ST 프로젝트에서 관리합니다.
 
 삼성 공식 기반 및 기타 공개 SDK 드라이버는 [Universal 빌더](../universal/README.md)를 참고하세요.
+
+## HOBEIAN radar diagnostics
+
+For TS0601 / _TZE200_rhgsbacq (ZG-204ZV) and TS0601 / _TZE200_y8jijhba (ZG-204ZE), no measured-distance datapoint is documented. A read-only **Radar DP report** diagnostic MQTT sensor and Edge log capture the latest valid EF00 report, marking IDs not in the respective published mapping as unknown. The entity reports "No report received" until an actual report arrives. It is not a distance measurement. No new Zigbee commands, polling, configuration changes or estimated distances are introduced. Only drivers exposing the relevant report handler or SDK dispatcher advertise the diagnostic; actual hub compatibility must be checked. Stand at measured distances (0.5, 1, 2, 3 m) and compare logs, without treating unknown DP values as metres until their meaning and scale are independently verified. SmartThings's existing device detail capabilities are unchanged.

@@ -271,3 +271,51 @@ assert(#reads==3,"queued read cancelled on missing device")
 power_tick();scheduled();power_tick();drain(target)
 assert(#reads==3 and not pollstate.devices[target.id],"removed device not polled")
 print("TS011F targeted physical polling simulation passed")
+
+-- Exact HOBEIAN profiles: report actual data only, never manufacture a distance.
+local laundry=device("radar-laundry",true,{main=component("main",{"presenceSensor","battery"})})
+local hall=device("radar-hall",false,{main=component("main",{"presenceSensor","battery"})})
+local other=device("radar-other",false,{main=component("main",{"presenceSensor"})})
+function laundry:get_model()return "TS0601" end
+function hall:get_model()return "TS0601" end
+function other:get_model()return "TS0601" end
+function laundry:get_manufacturer()return "_TZE200_rhgsbacq" end
+function hall:get_manufacturer()return "_TZE200_y8jijhba" end
+function other:get_manufacturer()return "_TZE200_other" end
+local original_reports=0
+local radar_template={capability_handlers={},zigbee_handlers={cluster={[0xEF00]={[5]=function() original_reports=original_reports+1;return "original" end}}}}
+local radar_state=bridge.wrap(radar_template,"radar-test")
+for _,d in ipairs({laundry,hall,other}) do radar_template.lifecycle_handlers.init(drv,d) end
+local function radar_flush()
+ pump(8)
+ for _,d in ipairs({laundry,hall,other})do drain(d) end
+ pump(12)
+end
+radar_flush()
+assert(radar_state.session.ready)
+local function radar_topic(id)
+ return "st-direct/home/radar-test/"..id.."/main/state/radar_dp"
+end
+local function radar_discovery(id)
+ return "homeassistant/sensor/std_st-direct_home_radar-test_"..id.."_main_radar_dp/config"
+end
+assert(count(radar_discovery("radar-laundry"))>0)
+assert(count(radar_discovery("radar-hall"))>0)
+assert(count(radar_discovery("radar-other"))==0)
+assert(count(radar_topic("radar-laundry"),"No report received")>0)
+local function report(d,raw)
+ return radar_template.zigbee_handlers.cluster[0xEF00][5](drv,d,{body={zcl_header={cmd={value=5}},zcl_body={body_bytes=raw}}})
+end
+local raw=string.char(0,1,1,1,0,1,1,101,2,0,4,0,0,0,55)
+assert(report(laundry,raw)=="original")
+assert(report(hall,raw)=="original")
+assert(report(other,raw)=="original")
+radar_flush()
+assert(count(radar_topic("radar-laundry"),"DP1/type1=01; DP101/type2=00000037")>0)
+assert(count(radar_topic("radar-hall"),"DP1/type1=01; DP101/type2=00000037 (unknown)")>0)
+assert(count(radar_topic("radar-other"))==0)
+local before_bad=count(radar_topic("radar-hall"))
+assert(report(hall,string.char(0,1,9,2,0,4,1))=="original")
+radar_flush()
+assert(count(radar_topic("radar-hall"))==before_bad and original_reports==4)
+print("HOBEIAN raw DP diagnostic and original handler preservation passed")
