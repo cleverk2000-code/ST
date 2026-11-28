@@ -61,6 +61,7 @@ local function radar_mapping(d)
  if type(d.get_model)~="function" or type(d.get_manufacturer)~="function" or d:get_model()~="TS0601" then return nil end
  return radar_known[d:get_manufacturer()]
 end
+-- RADAR_QUERY_BEGIN
 -- Query only through the pinned wonjj protocol and only on the two exact devices.
 local function radar_query_supported(s,d)
  return s.family=="ef00-presence-general-2" and s.radar_capture and radar_mapping(d)~=nil
@@ -70,6 +71,7 @@ local function radar_attributes(c,e,rec)
  local attrs={last_report_at=rec.radar_report_at or "none",last_query_at=rec.radar_query_at or "none",query_status=rec.radar_query_status or "not requested",datapoints=rec.radar_values or {}}
  put(c,e.config.json_attributes_topic,json.encode(attrs))
 end
+-- RADAR_QUERY_END
 local function radar_report(s,d,rx)
  local known=radar_mapping(d)
  if not known then return end
@@ -79,7 +81,10 @@ local function radar_report(s,d,rx)
  local raw=body.zcl_body and body.zcl_body.body_bytes
  -- Tuya report: two status/transaction bytes, then ID/type/big-endian length/value.
  if type(raw)~="string" or #raw<6 or #raw>1024 then return end
- local entries,values={},{}
+ local entries={}
+-- RADAR_QUERY_BEGIN
+ local values={}
+-- RADAR_QUERY_END
  local i=3
  while i<=#raw do
   if i+3>#raw then return end
@@ -88,7 +93,9 @@ local function radar_report(s,d,rx)
   if i+3+len>#raw then return end
   local hex=raw:sub(i+4,i+3+len):gsub(".",function(x)return string.format("%02X",x:byte())end)
   entries[#entries+1]=string.format("DP%d/type%d=%s%s",dp,dt,hex,known[dp] and "" or " (unknown)")
+-- RADAR_QUERY_BEGIN
   values["DP"..dp]={datatype=dt,hex=hex,unknown=not known[dp]}
+-- RADAR_QUERY_END
   i=i+4+len
  end
  if #entries==0 then return end
@@ -97,15 +104,19 @@ local function radar_report(s,d,rx)
  local rec=s.devices[d.id]
  if not rec or rec.device~=d or not exported(d) then return end
  rec.radar_state=#report<=255 and report or report:sub(1,252).."..."
+-- RADAR_QUERY_BEGIN
  rec.radar_values=rec.radar_values or {}
  for key,value in pairs(values) do rec.radar_values[key]=value end
  rec.radar_report_at=os.date("!%Y-%m-%dT%H:%M:%SZ")
+-- RADAR_QUERY_END
  local c=s.session
  if c and current(s,c) then
   for _,e in pairs(rec.entities or {}) do
    if e.component=="main" and e.config.state_topic==e.base.."/state/radar_dp" then
     put(c,e.config.state_topic,rec.radar_state)
+-- RADAR_QUERY_BEGIN
     radar_attributes(c,e,rec)
+-- RADAR_QUERY_END
    end
   end
  end
@@ -117,7 +128,9 @@ local function describe(s,c,d,rec)
   if model.safe_token(id) then
    local caps=caps_of(comp)
    if id=="main" and s.radar_capture and radar_mapping(d) then caps.stRadarDiagnostic=true end
+-- RADAR_QUERY_BEGIN
    if id=="main" and radar_query_supported(s,d) then caps.stRadarQuery=true end
+-- RADAR_QUERY_END
    local entities=model.describe(c.prefix,d.id,id,d.label or d.name or d.id,type(d.get_manufacturer)=="function" and d:get_manufacturer() or nil,type(d.get_model)=="function" and d:get_model() or nil,caps,s.handlers,rec.hook,category(comp) or (s.family:find("lights",1,true) and "Light" or s.family:find("plugs",1,true) and "SmartPlug" or nil))
    if entities.shade then
     local allowed=d:get_latest_state(id,"windowShade","supportedWindowShadeCommands")
@@ -162,7 +175,9 @@ local function register(s,c,d,rec)
   put(c,t,json.encode(e.config))
   if e.config.state_topic==e.base.."/state/radar_dp" then
    put(c,e.config.state_topic,rec.radar_state or "No report received")
+-- RADAR_QUERY_BEGIN
    radar_attributes(c,e,rec)
+-- RADAR_QUERY_END
   end
  end
  local topics={};for t in pairs(next_entities) do topics[#topics+1]=t end;table.sort(topics)
@@ -262,6 +277,7 @@ local function incoming(s,c,t,payload,retained)
   protected(function()
    local comp=d.profile.components[component]
    if not comp then return end
+-- RADAR_QUERY_BEGIN
    if field=="radar_query" then
     if payload~="PRESS" or component~="main" or not radar_query_supported(s,d) then return end
     local now=socket.gettime()
@@ -278,6 +294,7 @@ local function incoming(s,c,t,payload,retained)
     end
     return
    end
+-- RADAR_QUERY_END
    local cmd=model.command(caps_of(comp),s.handlers,field,payload)
    if not cmd then return end
    if cmd.command=="pause" then

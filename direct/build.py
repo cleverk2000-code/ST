@@ -127,6 +127,16 @@ def patch_driver(data,family,verify=True):
     src=data.decode("utf-8")
     if src.count(ANCHOR)!=1 or src.count("n:run()")!=1:raise ValueError("Unknown upstream entry point")
     return src.replace(ANCHOR,'\nrequire("st_mqtt.bridge").wrap(bv,"'+family+'")\n'+ANCHOR,1)
+def copy_bridge_modules(module,family):
+    # The query feature is only valid for the two fingerprints in this package.
+    # Other packages keep the 0.1.4 overlay and avoid spending scarce SDK package bytes.
+    for p in (ROOT/"lua").glob("*.lua"):
+        data=p.read_text(encoding="utf-8")
+        pattern=r"(?m)^-- RADAR_QUERY_BEGIN\n([\s\S]*?)^-- RADAR_QUERY_END\n"
+        data=re.sub(pattern,lambda m:m.group(1) if family=="ef00-presence-general-2" else "",data)
+        if "-- RADAR_QUERY_BEGIN" in data or "-- RADAR_QUERY_END" in data:
+            raise ValueError("Unbalanced radar query markers")
+        (module/p.name).write_bytes(data.encode("utf-8"))
 def archive_path(cache):
     cache.mkdir(parents=True,exist_ok=True)
     path=cache/(REV+".zip")
@@ -186,7 +196,7 @@ def build(z,packages,out):
                         if fp.get("deviceProfileName") not in profiles:raise ValueError("Fingerprint profile missing")
             driver=dest/"src/app/driver.lua";driver.write_text(patch_driver(driver.read_bytes(),family),encoding="utf-8")
             module=dest/"src/st_mqtt";module.mkdir()
-            for p in (ROOT/"lua").glob("*.lua"):shutil.copy2(p,module/p.name)
+            copy_bridge_modules(module,family)
             for p in (dest/"profiles").glob("*.y*ml"):p.write_text(patch_profile(p.read_text(encoding="utf-8")),encoding="utf-8")
             optimize_package(dest)
             (dest/"LICENSE.upstream").write_bytes(z.read(f"{root}/LICENSE"))
