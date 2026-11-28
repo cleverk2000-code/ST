@@ -271,6 +271,40 @@ assert(#reads==3,"queued read cancelled on missing device")
 power_tick();scheduled();power_tick();drain(target)
 assert(#reads==3 and not pollstate.devices[target.id],"removed device not polled")
 print("TS011F targeted physical polling simulation passed")
+-- Explicit power-on preference, no direct relay command or repeat writes.
+local writes={}
+package.preload["st.zigbee.data_types"]=function()
+ return {ClusterId=function(v)return v end,AttributeId=function(v)return v end,Enum8=function(v)return {value=v,ID=0x30} end}
+end
+package.preload["st.zigbee.cluster_base"]=function()
+ return {write_attribute=function(d,c,a,v)
+  assert(c==0x0006 and a==0x8002 and v.ID==0x30)
+  return {id=d.id,attribute=a,value=v.value}
+ end}
+end
+local function restore_plug(id,mfr)
+ local d=plug(id,mfr)
+ function d:supports_server_cluster(id)return id==0x0006 or id==0x0B04 end
+ function d:send_to_component(c,msg)
+  assert(c=="main" and msg.id==self.id)
+  if msg.attribute==0x8002 then writes[#writes+1]={id=self.id,value=msg.value}
+  else assert(msg.attribute==0x050B) end
+ end
+ return d
+end
+local rp=restore_plug("restore-plug","_TZ3000_5f43h46b")
+local unrelated=restore_plug("unrelated","_TZ3000_other")
+rp.preferences.stPowerRestore="unchanged";unrelated.preferences.stPowerRestore="on"
+sdklist={rp,unrelated};local rs=bridge.attach(sdk,"st-zigbee-switch")
+scheduled();drain(rp);drain(unrelated);assert(#writes==0)
+rp.preferences.stPowerRestore="on";scheduled();scheduled();drain(rp);assert(#writes==1 and writes[1].value==1)
+scheduled();drain(rp);assert(#writes==1)
+rs=bridge.attach(sdk,"st-zigbee-switch");scheduled();drain(rp);assert(#writes==1,"restart does not resend")
+rp.preferences.stPowerRestore="restore";scheduled();drain(rp);assert(#writes==2 and writes[2].value==2)
+rp.preferences.stPowerRestore="off";scheduled();rp.preferences.stPowerRestore="unchanged";scheduled();drain(rp);assert(#writes==2,"stale queued write rejected")
+rp.preferences.stPowerRestore="off";scheduled();drain(rp);assert(#writes==3 and writes[3].value==0)
+rp.preferences.stPowerRestore="on";scheduled();sdklist={unrelated};scheduled();drain(rp);assert(#writes==3,"missing device write rejected")
+print("TS011F power restore preference simulation passed")
 
 -- Exact HOBEIAN profiles: report actual data only, never manufacture a distance.
 local laundry=device("radar-laundry",true,{main=component("main",{"presenceSensor","battery"})})

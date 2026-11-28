@@ -136,6 +136,10 @@ def copy_bridge_modules(module,family):
         data=re.sub(pattern,lambda m:m.group(1) if family=="ef00-presence-general-2" else "",data)
         if "-- RADAR_QUERY_BEGIN" in data or "-- RADAR_QUERY_END" in data:
             raise ValueError("Unbalanced radar query markers")
+        pattern=r"(?m)^-- TUYA_POWER_RESTORE_BEGIN\n([\s\S]*?)^-- TUYA_POWER_RESTORE_END\n"
+        data=re.sub(pattern,lambda m:m.group(1) if family=="st-zigbee-switch" else "",data)
+        if "-- TUYA_POWER_RESTORE_BEGIN" in data or "-- TUYA_POWER_RESTORE_END" in data:
+            raise ValueError("Unbalanced power restore markers")
         (module/p.name).write_bytes(data.encode("utf-8"))
 def archive_path(cache):
     cache.mkdir(parents=True,exist_ok=True)

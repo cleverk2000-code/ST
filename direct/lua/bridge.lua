@@ -533,6 +533,39 @@ local function poll_power(s,d,rec)
  end)
  if not ok then rec.power_pending=nil end
 end
+-- TUYA_POWER_RESTORE_BEGIN
+-- Explicit opt-in, only the reviewed TS011F fingerprint. No relay commands.
+local restore_values={off=0,on=1,restore=2}
+local restore_field="st_direct_power_restore_submitted"
+local function power_restore(s,d,rec)
+ if s.family~="st-zigbee-switch" or not rec or s.missing[d.id] then return end
+ if type(d.parent_assigned_child_key)=="string" or type(d.get_manufacturer)~="function" or type(d.get_model)~="function" then return end
+ if d:get_model()~="TS011F" or d:get_manufacturer()~="_TZ3000_5f43h46b" then return end
+ local main=d.profile and d.profile.components and d.profile.components.main
+ if not main or not caps_of(main).switch or not caps_of(main).powerMeter then return end
+ local wanted=(d.preferences or {}).stPowerRestore
+ if wanted~="unchanged" and restore_values[wanted]==nil then return end
+ if rec.restore_seen==wanted then return end
+ rec.restore_seen=wanted
+ if wanted~="unchanged" and d:get_field(restore_field)==wanted then return end
+ local ok=pcall(function()
+  d.thread:queue_event(function()
+   if s.devices[d.id]~=rec or s.missing[d.id] or (d.preferences or {}).stPowerRestore~=wanted then return end
+   local sent,err=pcall(function()
+    if wanted=="unchanged" then d:set_field(restore_field,"unchanged",{persist=true});return end
+    if not d:supports_server_cluster(0x0006) then error("missing OnOff") end
+    local cb=require "st.zigbee.cluster_base"
+    local dt=require "st.zigbee.data_types"
+    d:send_to_component("main",cb.write_attribute(d,dt.ClusterId(0x0006),dt.AttributeId(0x8002),dt.Enum8(restore_values[wanted])))
+    d:set_field(restore_field,wanted,{persist=true})
+    log.info("ST Direct TS011F power restore write submitted: "..wanted.." (not verified)")
+   end)
+   if not sent then log.warn("ST Direct TS011F power restore write failed; select unchanged then desired setting to retry") end
+  end)
+ end)
+ if not ok then log.warn("ST Direct TS011F power restore queue failed; change setting to retry") end
+end
+-- TUYA_POWER_RESTORE_END
 -- SDK adapter deliberately does not replace lifecycle handlers or default/subdriver dispatch.
 -- Poll only the local driver inventory; no cloud API. Missing devices are removed after two complete scans.
 function M.attach(driver,family)
@@ -587,6 +620,9 @@ function M.attach(driver,family)
       if first then protected(poll_power,s,d,s.devices[d.id]) end
      end
     end
+-- TUYA_POWER_RESTORE_BEGIN
+    if s.devices[d.id] then protected(power_restore,s,d,s.devices[d.id]) end
+-- TUYA_POWER_RESTORE_END
    end
   end
   local absent={}

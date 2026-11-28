@@ -66,6 +66,17 @@ def extract_package(z,package,dest):
         if p.parts[0] not in {"src","profiles","config.yml","config.yaml","fingerprints.yml","fingerprints.yaml","LICENSE","NOTICE"}:continue
         target=dest.joinpath(*p.parts);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(z.read(info))
     return root
+def patch_sdk_profile(content,family):
+    patched=direct.patch_profile(content)
+    if family!="st-zigbee-switch":return patched
+    obj=direct.read_yaml(patched)
+    main=next((c for c in obj["components"] if c.get("id")=="main"),{})
+    caps={c.get("id") for c in main.get("capabilities",[])}
+    if not {"switch","powerMeter"}<=caps:return patched
+    prefs=obj["preferences"]
+    if any(p.get("name")=="stPowerRestore" for p in prefs):raise ValueError("Power restore preference collision")
+    prefs.append(dict(name="stPowerRestore",title="TS011F Power Restore",description="Only TS011F _TZ3000_5f43h46b. Unchanged sends no setting. On may restart appliance after power loss.",required=True,preferenceType="enumeration",definition=dict(options={"unchanged":"Keep existing setting","off":"Always off","on":"Always on","restore":"Restore previous state"},default="unchanged")))
+    return yaml.safe_dump(obj,allow_unicode=True,sort_keys=False,width=120)
 def build_sdk(archive,package,dest,family,license_id,expected=None):
     with zipfile.ZipFile(archive) as z:
         dest.mkdir()
@@ -84,7 +95,7 @@ def build_sdk(archive,package,dest,family,license_id,expected=None):
         init=dest/"src/init.lua";init.write_text(patch(init.read_bytes(),family,expected),encoding="utf-8")
         profiles=list((dest/"profiles").glob("*.y*ml"))
         if not profiles:raise ValueError("No profiles")
-        for p in profiles:p.write_text(direct.patch_profile(p.read_text(encoding="utf-8")),encoding="utf-8")
+        for p in profiles:p.write_text(patch_sdk_profile(p.read_text(encoding="utf-8"),family),encoding="utf-8")
         module=dest/"src/st_mqtt";module.mkdir()
         direct.copy_bridge_modules(module,family)
         direct.optimize_package(dest)
