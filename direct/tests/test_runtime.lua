@@ -284,7 +284,7 @@ function hall:get_manufacturer()return "_TZE200_y8jijhba" end
 function other:get_manufacturer()return "_TZE200_other" end
 local original_reports=0
 local radar_template={capability_handlers={},zigbee_handlers={cluster={[0xEF00]={[5]=function() original_reports=original_reports+1;return "original" end}}}}
-local radar_state=bridge.wrap(radar_template,"radar-test")
+local radar_state=bridge.wrap(radar_template,"ef00-presence-general-2")
 for _,d in ipairs({laundry,hall,other}) do radar_template.lifecycle_handlers.init(drv,d) end
 local function radar_flush()
  pump(8)
@@ -294,10 +294,10 @@ end
 radar_flush()
 assert(radar_state.session.ready)
 local function radar_topic(id)
- return "st-direct/home/radar-test/"..id.."/main/state/radar_dp"
+ return "st-direct/home/ef00-presence-general-2/"..id.."/main/state/radar_dp"
 end
 local function radar_discovery(id)
- return "homeassistant/sensor/std_st-direct_home_radar-test_"..id.."_main_radar_dp/config"
+ return "homeassistant/sensor/std_st-direct_home_ef00-presence-general-2_"..id.."_main_radar_dp/config"
 end
 assert(count(radar_discovery("radar-laundry"))>0)
 assert(count(radar_discovery("radar-hall"))>0)
@@ -319,3 +319,45 @@ assert(report(hall,string.char(0,1,9,2,0,4,1))=="original")
 radar_flush()
 assert(count(radar_topic("radar-hall"))==before_bad and original_reports==4)
 print("HOBEIAN raw DP diagnostic and original handler preservation passed")
+
+-- Explicit user-triggered read-only query; never poll, never replay retained commands.
+local queries={}
+package.preload["protocol.tuya"]=function()
+ return {send_state_request=function(d,cmd)
+  queries[#queries+1]={id=d.id,cmd=cmd};return true
+ end}
+end
+local function query_topic(id)
+ return "st-direct/home/ef00-presence-general-2/"..id.."/main/cmd/radar_query"
+end
+local function query_discovery(id)
+ return "homeassistant/button/std_st-direct_home_ef00-presence-general-2_"..id.."_main_radar_query/config"
+end
+assert(count(query_discovery(laundry.id))>0)
+assert(count(query_discovery(hall.id))>0)
+assert(count(query_discovery(other.id))==0)
+assert(#queries==0)
+-- Send directly on the radar session rather than whichever mock socket was created last.
+local radar_sock=connections[#connections]
+local function press(id,payload,retained)
+ push(radar_sock,wire.frame(retained and 0x31 or 0x30,wire.str(query_topic(id))..payload))
+ radar_flush()
+end
+press(hall.id,"PRESS",true);assert(#queries==0)
+press(hall.id,"INVALID");assert(#queries==0)
+press(other.id,"PRESS");assert(#queries==0)
+press(hall.id,"PRESS");assert(#queries==1 and queries[1].id==hall.id and queries[1].cmd==3)
+press(hall.id,"PRESS");assert(#queries==1)
+press(laundry.id,"PRESS");assert(#queries==2 and queries[2].id==laundry.id)
+local attrs_topic=radar_topic(hall.id).."_attributes"
+local function latest_attrs()
+ for i=#sent,1,-1 do if sent[i].topic==attrs_topic then return sent[i].payload end end
+ return ""
+end
+assert(latest_attrs():find("sent; response not guaranteed",1,true))
+assert(report(hall,string.char(0,1,77,2,0,4,0,0,0,42))=="original")
+radar_flush()
+local attrs=latest_attrs()
+assert(attrs:find("DP77",1,true) and attrs:find("0000002A",1,true) and attrs:find("DP101",1,true))
+assert(attrs:find("last_report_at",1,true) and attrs:find("last_query_at",1,true))
+print("Manual radar query, cooldown, and cumulative diagnostics passed")
