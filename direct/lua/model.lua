@@ -137,6 +137,12 @@ function M.describe(prefix,id,component,label,manufacturer,model,caps,handlers,h
  if caps.stRadarDiagnostic then
   add("radar_dp","sensor",{state_topic=base.."/state/radar_dp",entity_category="diagnostic",icon="mdi:radar"},nil,nil,"Radar DP report")
  end
+-- RADAR_QUERY_BEGIN
+ if caps.stRadarQuery then
+  if entities.radar_dp then entities.radar_dp.config.json_attributes_topic=base.."/state/radar_dp_attributes" end
+  add("radar_query","button",{command_topic=base.."/cmd/radar_query",payload_press="PRESS",retain=false,entity_category="diagnostic",icon="mdi:refresh"},nil,{radar_query=true},"Radar query all DP")
+ end
+-- RADAR_QUERY_END
  if caps.button and hook then
   add("button","event",{state_topic=base.."/state/button",event_types=M.button_types,device_class="button"},nil,nil,"Button")
  end

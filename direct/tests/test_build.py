@@ -39,6 +39,19 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(b.package_key("zcl-plugs"),"cleverk2000.st-direct.zcl-plugs")
         self.assertEqual(b.package_key(families[0]),keys[0])
         self.assertLessEqual(len(b.display_name("ST MQTT "+"x"*100)),36)
+    def test_radar_query_package_scope(self):
+        with tempfile.TemporaryDirectory() as td:
+            target=Path(td)/"target";target.mkdir()
+            other=Path(td)/"other";other.mkdir()
+            b.copy_bridge_modules(target,"ef00-presence-general-2")
+            b.copy_bridge_modules(other,"zcl-sensors")
+            for name in ("bridge.lua","model.lua"):
+                a=(target/name).read_text();c=(other/name).read_text()
+                self.assertIn("radar_query",a)
+                self.assertNotIn("radar_query",c)
+                self.assertNotIn("RADAR_QUERY_BEGIN",a)
+                self.assertNotIn("RADAR_QUERY_BEGIN",c)
+                self.assertIn("radar_dp",c)
     def test_allowed(self):
         self.assertTrue(b.ALLOWED.fullmatch("ef00-covers-2-wonjj6768"))
         self.assertTrue(b.ALLOWED.fullmatch("zcl-plugs-wonjj6768"))
