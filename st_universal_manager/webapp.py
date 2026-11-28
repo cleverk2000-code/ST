@@ -21,7 +21,7 @@ PAGE="""<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewpor
 <p><a href="https://account.smartthings.com/tokens" target="_blank" rel="noopener noreferrer">스마트폰에서 PAT 발급</a></p>
 <label>허브 ID <input name="hub" value="{{hub}}" required></label>
 <label>채널 ID <input name="channel" value="{{channel}}" required></label></fieldset>
-<fieldset><legend>드라이버 선택</legend>{% for family in families %}<label><input type="checkbox" name="family" value="{{family}}" checked> {{family}}</label>{% endfor %}
+<fieldset><legend>드라이버 선택</legend>{% for family in families %}<label><input type="checkbox" name="family" value="{{family}}"{% if family in default_families %} checked{% endif %}> {{family}}{% if family not in default_families %} (선택 설치){% endif %}</label>{% endfor %}
 <label><input type="checkbox" name="allow_new"> 기존 설치가 없는 패키지 신규 설치 허용 (기본 OFF)</label></fieldset>
 <fieldset><legend>MQTT 자동 설정 (선택)</legend>
 <label><input type="checkbox" name="embed"> 모든 선택 드라이버에 공통 접속 정보 내장</label>
@@ -68,7 +68,7 @@ def page():
         busy=state["busy"];lines="\n".join(state["lines"])
         entry=auth_cache.get(sid)
         hint="메모리의 임시 PAT 재사용 가능" if entry and entry[1]>time.monotonic() else "24시간 임시 PAT 입력"
-    return render_template_string(PAGE,csrf=csrf,busy=busy,hub=state["hub"],channel=state["channel"],families=m.FAMILIES,host=cfg.get("host","192.168.0.19"),port=cfg.get("port",1883),user=cfg.get("user",""),site=cfg.get("site","home"),placeholder="저장된 암호 사용" if cfg else "MQTT 비밀번호",log=lines,token_hint=hint)
+    return render_template_string(PAGE,csrf=csrf,busy=busy,hub=state["hub"],channel=state["channel"],families=m.FAMILIES,default_families=m.DEFAULT_FAMILIES,host=cfg.get("host","192.168.0.19"),port=cfg.get("port",1883),user=cfg.get("user",""),site=cfg.get("site","home"),placeholder="저장된 암호 사용" if cfg else "MQTT 비밀번호",log=lines,token_hint=hint)
 @app.before_request
 def ingress_only():
     if request.remote_addr not in ("172.30.32.2","127.0.0.1","::1") and os.getenv("ST_TEST")!="1":abort(403)

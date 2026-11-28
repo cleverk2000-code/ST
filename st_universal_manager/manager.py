@@ -4,7 +4,8 @@ from pathlib import Path
 
 SOURCE=Path(os.getenv("ST_SOURCE","/opt/st"))
 DATA=Path(os.getenv("ST_DATA","/data"))
-FAMILIES=["st-zigbee-motion-sensor","st-zigbee-switch","st-zigbee-window-treatment","ef00-covers-2","ef00-presence-general-2","zcl-plugs","zcl-sensors"]
+DEFAULT_FAMILIES=["st-zigbee-motion-sensor","st-zigbee-switch","st-zigbee-window-treatment","ef00-covers-2","ef00-presence-general-2","zcl-plugs","zcl-sensors"]
+FAMILIES=DEFAULT_FAMILIES+["zcl-controls"]
 def load_build():
     spec=importlib.util.spec_from_file_location("st_manager_direct",SOURCE/"direct/build.py")
     m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m

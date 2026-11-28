@@ -1,3 +1,8 @@
+## 0.1.6
+- Add opt-in `zcl-controls` package selection for original wonjj6768 ZCL Controls remotes and multi-component buttons. Keep the existing seven packages selected by default.
+- Use the existing pinned upstream builder and MQTT button-event bridge; first installation requires explicit new-package approval and manual compatible driver selection in SmartThings.
+- Add inventory and UI selection regression tests. Physical hub and MQTT button-event verification still required.
+
 ## 0.1.5
 - Add manual Radar query all DP button for the two HOBEIAN TS0601 fingerprints in ef00-presence-general-2. Send one EF00 0x03 read request, with per-device 30-second cooldown; no polling.
 - Accumulate observed DP values and last query/report timestamps in Radar DP report attributes. No unverified distance inference.

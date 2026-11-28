@@ -16,6 +16,24 @@ class TestManager(unittest.TestCase):
   self.assertEqual(m.verify_uploaded(p,{"packageKey":key,"driverId":did,"version":"new"}),(did,"new"))
   with self.assertRaises(RuntimeError):m.verify_uploaded(p,{"packageKey":key,"driverId":ch,"version":"new"})
   with self.assertRaises(ValueError):m.make_plan([fam],ins,owned,[],ch)
+ def test_zcl_controls_opt_in(self):
+  fam="zcl-controls";ch="00000000-0000-4000-8000-000000000002"
+  self.assertIn(fam,m.FAMILIES)
+  self.assertNotIn(fam,m.DEFAULT_FAMILIES)
+  self.assertEqual(len(m.DEFAULT_FAMILIES),7)
+  with self.assertRaises(ValueError):m.make_plan([fam],[],[],[],ch)
+  p=m.make_plan([fam],[],[],[],ch,True)[0]
+  self.assertEqual(p["mode"],"new")
+  self.assertEqual(p["key"],m.load_build().package_key(fam))
+ def test_zcl_controls_ui(self):
+  import re
+  import webapp
+  from flask import render_template_string
+  with webapp.app.test_request_context():
+   html=render_template_string(webapp.PAGE,families=m.FAMILIES,default_families=m.DEFAULT_FAMILIES)
+  self.assertRegex(html,r'name="family" value="zcl-plugs" checked')
+  self.assertRegex(html,r'name="family" value="zcl-controls">')
+  self.assertNotRegex(html,r'name="family" value="zcl-controls" checked')
  def test_embed(self):
   with tempfile.TemporaryDirectory() as td:
    p=Path(td)/"src/st_mqtt";p.mkdir(parents=True)
