@@ -3,7 +3,7 @@ ARG BUILD_ARCH
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-yaml python3-flask ca-certificates curl unzip lua5.3 && rm -rf /var/lib/apt/lists/*
 RUN npm install -g @smartthings/cli@3.0.1 && smartthings --version
-RUN mkdir -p /opt/st && curl --fail --location --retry 3 https://codeload.github.com/cleverk2000-code/ST/zip/cb78b762fd0aceeb2f21a5d714c157196abf526f -o /tmp/st.zip && unzip -q /tmp/st.zip -d /tmp/st-src && cp -a /tmp/st-src/ST-cb78b762fd0aceeb2f21a5d714c157196abf526f/direct /tmp/st-src/ST-cb78b762fd0aceeb2f21a5d714c157196abf526f/universal /opt/st/ && rm -rf /tmp/st.zip /tmp/st-src
+RUN mkdir -p /opt/st && curl --fail --location --retry 3 https://codeload.github.com/cleverk2000-code/ST/zip/490897f1096ce938db2235bd0373d4ff108e7250 -o /tmp/st.zip && unzip -q /tmp/st.zip -d /tmp/st-src && cp -a /tmp/st-src/ST-490897f1096ce938db2235bd0373d4ff108e7250/direct /tmp/st-src/ST-490897f1096ce938db2235bd0373d4ff108e7250/universal /opt/st/ && rm -rf /tmp/st.zip /tmp/st-src
 COPY manager.py /opt/manager.py
 COPY webapp.py /opt/webapp.py
 WORKDIR /opt

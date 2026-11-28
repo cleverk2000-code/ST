@@ -1,3 +1,9 @@
+## 0.1.5
+- Add manual Radar query all DP button for the two HOBEIAN TS0601 fingerprints in ef00-presence-general-2. Send one EF00 0x03 read request, with per-device 30-second cooldown; no polling.
+- Accumulate observed DP values and last query/report timestamps in Radar DP report attributes. No unverified distance inference.
+- Scope additional code to the presence package to preserve Samsung package size limits for unrelated drivers.
+- Physical query response and measured-distance availability remain unverified.
+
 ## 0.1.4
 - Add read-only EF00 radar DP diagnostics for TS0601 / _TZE200_rhgsbacq and _TZE200_y8jijhba in the supported Edge driver.
 - Publish the latest received DP report in HA MQTT Discovery and Edge logs, marking undocumented DP IDs. No estimated distance, additional Zigbee polling or SmartThings capability changes.
