@@ -20,7 +20,8 @@ PAGE="""<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewpor
 <label>임시 PAT <input name="token" type="password" autocomplete="off" placeholder="{{token_hint}}"></label>
 <p><a href="https://account.smartthings.com/tokens" target="_blank" rel="noopener noreferrer">스마트폰에서 PAT 발급</a></p>
 <label>허브 ID <input name="hub" value="{{hub}}" required></label>
-<label>채널 ID <input name="channel" value="{{channel}}" required></label></fieldset>
+<label>채널 ID <input name="channel" value="{{channel}}" required></label>
+<small>확인된 허브·채널 ID는 자동 저장됩니다. 다음 실행이나 업데이트 시 다시 입력할 필요가 없으며 변경할 때만 수정하세요.</small></fieldset>
 <fieldset><legend>드라이버 선택</legend>{% for family in families %}<label><input type="checkbox" name="family" value="{{family}}"{% if family in default_families %} checked{% endif %}> {{family}}{% if family not in default_families %} (선택 설치){% endif %}</label>{% endfor %}
 <label><input type="checkbox" name="allow_new"> 기존 설치가 없는 패키지 신규 설치 허용 (기본 OFF)</label></fieldset>
 <fieldset><legend>MQTT 자동 설정 (선택)</legend>
@@ -44,6 +45,7 @@ def worker(token,hub,channel,families,cfg,action,allow_new):
     try:
         cli=m.CLI(token);ins,owned,assigned=cli.inventory(hub,channel)
         plan=m.make_plan(families,ins,owned,assigned,channel,allow_new)
+        m.save_target(hub,channel)
         for p in plan:report(p["family"]+": "+p["mode"]+" "+str(p["driver_id"] or "new"))
         if action!="inventory":m.build_and_deploy(cli,hub,channel,plan,cfg,action=="apply",report)
         with lock:state["ok"]=True
@@ -64,11 +66,14 @@ def page():
     sid=session.setdefault("sid",secrets.token_urlsafe(24))
     try:cfg=m.read_config() or {}
     except Exception:cfg={}
+    saved=m.read_target() or {}
     with lock:
         busy=state["busy"];lines="\n".join(state["lines"])
+        hub=saved.get("hub",state["hub"]);channel=saved.get("channel",state["channel"])
+        if busy:hub=state["hub"];channel=state["channel"]
         entry=auth_cache.get(sid)
         hint="메모리의 임시 PAT 재사용 가능" if entry and entry[1]>time.monotonic() else "24시간 임시 PAT 입력"
-    return render_template_string(PAGE,csrf=csrf,busy=busy,hub=state["hub"],channel=state["channel"],families=m.FAMILIES,default_families=m.DEFAULT_FAMILIES,host=cfg.get("host","192.168.0.19"),port=cfg.get("port",1883),user=cfg.get("user",""),site=cfg.get("site","home"),placeholder="저장된 암호 사용" if cfg else "MQTT 비밀번호",log=lines,token_hint=hint)
+    return render_template_string(PAGE,csrf=csrf,busy=busy,hub=hub,channel=channel,families=m.FAMILIES,default_families=m.DEFAULT_FAMILIES,host=cfg.get("host","192.168.0.19"),port=cfg.get("port",1883),user=cfg.get("user",""),site=cfg.get("site","home"),placeholder="저장된 암호 사용" if cfg else "MQTT 비밀번호",log=lines,token_hint=hint)
 @app.before_request
 def ingress_only():
     if request.remote_addr not in ("172.30.32.2","127.0.0.1","::1") and os.getenv("ST_TEST")!="1":abort(403)
@@ -88,7 +93,9 @@ def index():
             return page()
         if action not in ("inventory","dry","apply"):raise ValueError("Invalid action")
         if action=="apply" and not f.get("confirm"):raise ValueError("Update confirmation required")
-        hub=m.uuid_text(f["hub"]);channel=m.uuid_text(f["channel"]);token=f.get("token","").strip()
+        saved=m.read_target() or {}
+        target=m.target_config(f.get("hub","").strip() or saved.get("hub",""),f.get("channel","").strip() or saved.get("channel",""))
+        hub=target["hub"];channel=target["channel"];token=f.get("token","").strip()
         if not token:
             with lock:entry=auth_cache.get(sid)
             if entry and entry[1]>time.monotonic():token=entry[0]

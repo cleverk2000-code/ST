@@ -1,3 +1,8 @@
+## 0.1.7
+- Persist the last validated hub/channel UUID pair in the add-on data directory; prefill it after restart and update.
+- Save only after successful inventory/plan validation; rejected target changes retain the previous pair. No personal IDs or PAT in source.
+- Add persistence, restart-prefill and target-change regression tests.
+
 ## 0.1.6
 - Add opt-in `zcl-controls` package selection for original wonjj6768 ZCL Controls remotes and multi-component buttons. Keep the existing seven packages selected by default.
 - Use the existing pinned upstream builder and MQTT button-event bridge; first installation requires explicit new-package approval and manual compatible driver selection in SmartThings.

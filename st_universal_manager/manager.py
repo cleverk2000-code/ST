@@ -11,6 +11,27 @@ def load_build():
     m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m);return m
 def uuid_text(s):
     return str(uuid.UUID(s))
+def target_config(hub,channel):
+    return dict(hub=uuid_text(hub.strip()),channel=uuid_text(channel.strip()))
+def save_target(hub,channel):
+    cfg=target_config(hub,channel)
+    if read_target()==cfg:return cfg
+    DATA.mkdir(parents=True,exist_ok=True)
+    fd,name=tempfile.mkstemp(dir=DATA,prefix=".target-")
+    try:
+        os.fchmod(fd,0o600)
+        with os.fdopen(fd,"w",encoding="utf-8") as out:json.dump(cfg,out)
+        os.replace(name,DATA/"target.local.json")
+    finally:
+        Path(name).unlink(missing_ok=True)
+    return cfg
+def read_target():
+    p=DATA/"target.local.json"
+    try:
+        cfg=json.loads(p.read_text(encoding="utf-8"))
+        return target_config(cfg["hub"],cfg["channel"])
+    except (OSError,ValueError,KeyError,TypeError,AttributeError):
+        return None
 def token_valid(s):
     return isinstance(s,str) and 16<=len(s)<=4096 and not any(c.isspace() or ord(c)<32 for c in s)
 def mqtt_config(host,port,user,password,site):
