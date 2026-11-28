@@ -1,4 +1,4 @@
-# ST Universal Manager — 0.1.7 개발 후보
+# ST Universal Manager — 0.1.8 개발 후보
 HA OS/Supervised의 amd64/aarch64용 관리 애드온. 기존 Edge 런타임은 변경하지 않고 별도 관리 UI를 추가합니다.
 
 설치: HA 설정 → 앱(애드온) → 앱 스토어 → 저장소 → https://github.com/cleverk2000-code/ST 추가 → ST Universal Manager 설치 → 시작 → 웹 UI 열기. Docker 이미지 빌드 시 npm/GitHub 연결 필요. HA OS/Supervised가 아닌 HA Container/Core는 앱을 지원하지 않습니다.
@@ -10,3 +10,6 @@ PC 필요 없음: 스마트폰에서 SmartThings 임시 PAT 발급 후 웹 UI에
 공통 MQTT 내장을 선택하면 기존 Master 설정 대신 로컬 파일에서 받은 공통 연결 정보를 빌드에 삽입합니다. 기본 site home, 패키지 family, 기존 토픽/unique_id 및 설정 필드 유지. 기기별 Export OFF는 계속 유효. GitHub에는 암호 없음. 단, 개인 빌드 패키지는 삼성 서버에 업로드되므로 암호가 패키지에 포함됩니다. 전용 최소 권한 MQTT 계정 사용 및 채널 비공개 유지 권장. 저장 선택 시 애드온 /data에 0600 파일로 저장하며 HA 백업에 포함될 수 있습니다. PAT는 저장하지 않습니다. 임시 빌드는 작업 완료 후 삭제. 빌드 캐시는 원본 공개 소스만 보존. 내장 없이 업데이트하면 기존 Master 설정 사용. 기존 기기 및 HA 엔티티 ID 유지 목표이며 실기 검증 전까지 한 패키지씩 적용 권장.
 
 현재 UI는 기존 7개 관리, ZCL Controls 선택 설치 및 신규 설치 옵션에 집중합니다. 타사 소스 등록 UI, 자동 드라이버 변경, Rules 관리, 자동 원본 업데이트 및 지속 OAuth는 미구현. 실제 HA 설치·삼성 인증·업데이트 테스트 전 개발 후보입니다.
+
+### TS011F 정전 복구 설정 (0.1.8)
+`st-zigbee-switch`만 업데이트한 후 SmartThings 기기 설정의 `TS011F Power Restore`에서 `Always on`, `Always off`, `Restore previous state` 중 원하는 값을 선택합니다. 초기값 `Keep existing setting`은 전원 동작을 변경하지 않습니다. 공유 전력측정 스위치 프로필에 설정이 표시될 수 있으나 실제 쓰기는 TS011F / _TZ3000_5f43h46b에만 수행합니다. Tuya OnOff 0x8002 설정 명령만 전송하며 릴레이 즉시 ON/OFF는 하지 않습니다. 마지막 전송값은 실제 기기 확인값이 아닙니다. 다시 보내려면 Keep existing setting으로 변경하고 약 3초 이상 기다린 후 원하는 값을 다시 선택하세요. 실제 전원 복구를 안전한 상태에서 검증하세요. 기기 제조사의 무인 재가동 허용 여부도 확인하세요.

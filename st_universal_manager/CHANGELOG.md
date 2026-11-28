@@ -1,3 +1,8 @@
+## 0.1.8
+- Add TS011F Power Restore preference to power-metering switch profiles; writes only for TS011F / _TZ3000_5f43h46b on the official Zigbee Switch overlay. Default unchanged; off/on/restore map to Tuya OnOff 0x8002 Enum8 values 0/1/2.
+- No immediate relay command, periodic restore writes, or changes to MQTT discovery identities; keep existing power polling. Persist last submitted choice, not verified device state. Other models ignore the preference.
+- Pin the add-on builder to the new overlay revision; regression tests cover explicit changes, restart and unrelated models. Real device power-cycle verification required.
+
 ## 0.1.7
 - Persist the last validated hub/channel UUID pair in the add-on data directory; prefill it after restart and update.
 - Save only after successful inventory/plan validation; rejected target changes retain the previous pair. No personal IDs or PAT in source.
